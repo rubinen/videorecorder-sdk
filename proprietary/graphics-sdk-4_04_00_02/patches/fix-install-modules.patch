@@ -1,0 +1,46 @@
+Index: graphics-sdk-4_04_00_02/sgxsdk/addkernelmodules.sh
+===================================================================
+--- graphics-sdk-4_04_00_02.orig/sgxsdk/addkernelmodules.sh	2012-12-10 15:39:23.203087002 -0600
++++ graphics-sdk-4_04_00_02/sgxsdk/addkernelmodules.sh	2012-12-10 15:39:32.843087039 -0600
+@@ -1,17 +1,15 @@
+ #!/bin/sh
+ 
+-#Navigate to the kernel installation directory
+-cd $1
++install -D gfx_rel_es$3/pvrsrvkm.ko $2/lib/modules/$4/kernel/drivers/char/pvrsrvkm.ko
++install -D gfx_rel_es$3/omaplfb.ko $2/lib/modules/$4/kernel/drivers/char/omaplfb.ko
++
++if ! grep -q pvrsrvkm.ko $2/lib/modules/$4/modules.dep ; then \
++    echo "kernel/drivers/char/pvrsrvkm.ko:" >> $2/lib/modules/$4/modules.dep ; \
++fi
++
++if ! grep -q omaplfb.ko $2/lib/modules/$4/modules.dep ; then \
++    echo -n "kernel/drivers/char/omaplfb.ko: /kernel/drivers/char/pvrsrvkm.ko" >> $2/lib/modules/$4/modules.dep ; \
++fi
++
+ 
+-#install the kernel modules
+-make ARCH=arm CROSS_COMPILE=arm-none-linux-gnueabi- INSTALL_MOD_PATH=$2 modules_install
+ 
+-#Now done in target
+-#add the kernel modules to modules.dep
+-#grep -v -e "drivers/char/pvrsrvkm.ko" $2/lib/modules/2.6.29-rc3-omap1/modules.dep >/tmp/modules.$$.tmp
+-#echo "/lib/modules/2.6.29-rc3-omap1/kernel/drivers/char/pvrsrvkm.ko:" >>/tmp/modules.$$.tmp
+-#cp -rf /tmp/modules.$$.tmp $2/lib/modules/2.6.29-rc3-omap1/modules.dep
+-
+-#grep -v -e "drivers/char/omaplfb.ko" $2/lib/modules/2.6.29-rc3-omap1/modules.dep >/tmp/modules.$$.tmp
+-#echo "/lib/modules/2.6.29-rc3-omap1/kernel/drivers/char/omaplfb.ko: /lib/modules/2.6.29-rc3-omap1/kernel/drivers/char/pvrsrvkm.ko" >>/tmp/modules.$$.tmp
+-#cp -rf /tmp/modules.$$.tmp $2/lib/modules/2.6.29-rc3-omap1/modules.dep
+Index: graphics-sdk-4_04_00_02/sgxsdk/Makefile.KM
+===================================================================
+--- graphics-sdk-4_04_00_02.orig/sgxsdk/Makefile.KM	2012-12-10 15:40:14.647087201 -0600
++++ graphics-sdk-4_04_00_02/sgxsdk/Makefile.KM	2012-12-10 15:40:37.231087286 -0600
+@@ -283,7 +283,7 @@
+ 	@cp $(GFX_PKG_TARGETFS_PATH)/rc.pvr $(TARGETFS_INSTALL_DIR)/etc/init.d
+   endif
+ 	@echo "installing and adding kernel modules to target file system..."
+-	@./addkernelmodules.sh $(KERNEL_INSTALL_DIR) $(TARGETFS_INSTALL_DIR)
++	@./addkernelmodules.sh $(KERNEL_INSTALL_DIR) $(TARGETFS_INSTALL_DIR) $(OMAPES) $(KERNELVERSION)
+ 	
+ 	@echo "copying user space graphics libraries to target file system..."
+   ifeq ($(OMAPES),2.x)

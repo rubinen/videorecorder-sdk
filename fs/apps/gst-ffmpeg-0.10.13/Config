@@ -1,0 +1,13 @@
+config FS_APPS_GSTREAMER_PLUGINS_FFMPEG
+	bool "gstreamer-plugins-ffmpeg 0.10.13"
+	select FS_APPS_GSTREAMER_PLUGINS_BASE
+	help
+	This option enabled the ffmpeg plugin for gstreamer
+
+config FS_APPS_GSTREAMER_PLUGINS_FFMPEG_NEON
+	bool "Enable Neon Optimization"
+	depends on BSP_ARCH_DM8168 || BSP_ARCH_DM8148 || FS_APPS_GSTREAMER_PLUGINS_FFMPEG
+	default y
+	help
+	    ARM architecture contains a NEON unit able to speed up video and audio processing,
+	    enable NEON support in the FFMPEG package using this option.

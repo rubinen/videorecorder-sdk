@@ -1,0 +1,40 @@
+Index: oprofile-0.9.6/src/utils/opcontrol
+===================================================================
+--- oprofile-0.9.6.orig/src/utils/opcontrol	2009-11-24 09:25:17.000000000 -0600
++++ oprofile-0.9.6/src/utils/opcontrol	2011-02-10 09:20:41.854347955 -0600
+@@ -189,7 +189,7 @@
+ 		fi
+ 	fi
+ 	mkdir /dev/oprofile >/dev/null 2>&1
+-	grep oprofilefs /etc/mtab >/dev/null
++	grep oprofilefs /proc/mounts >/dev/null
+ 	if test "$?" -ne 0; then
+ 		mount -t oprofilefs nodev /dev/oprofile >/dev/null
+ 	fi
+@@ -1694,7 +1694,7 @@
+ do_deinit()
+ {
+ 	# unmount /dev/oprofile if it is mounted
+-	OPROF_FS=`grep /dev/oprofile /etc/mtab`
++	OPROF_FS=`grep /dev/oprofile /proc/mounts`
+ 	if test -n "$OPROF_FS"; then
+ 		umount /dev/oprofile
+ 	fi
+@@ -1793,7 +1793,7 @@
+ check_version()
+ {
+ 	OPROFILE_AVAILABLE=no
+-	grep oprofilefs /etc/mtab >/dev/null
++	grep oprofilefs /proc/mounts >/dev/null
+ 	if test "$?" -eq 0; then
+ 		# need to have oprofilefs mounted for this to work on 2.6
+ 		KERNEL_SUPPORT=yes
+@@ -1967,7 +1967,7 @@
+ 
+ # determine the location of opcontrol and related programs
+ if test -z "$OPDIR"; then
+-	BINDIR="/usr/bin"
++	BINDIR="/bin"
+ 	OPCONTROL=`$BINDIR/which $0`
+ 	OPDIR=`$BINDIR/dirname $OPCONTROL`
+ fi

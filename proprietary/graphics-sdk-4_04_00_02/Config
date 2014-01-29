@@ -1,0 +1,16 @@
+config PROPRIETARY_TI_GRAPHICS_SDK
+	bool
+	default n
+
+config PROPRIETARY_TI_GRAPHICS_SDK_DM81XX
+	bool "Texas Instruments Graphics SDK (4.04.00.02) for DM81xx"
+	depends on BSP_ARCH_DM8168 || BSP_ARCH_DM8148
+	select PROPRIETARY_TI_GRAPHICS_SDK
+	default n
+	help
+	 Linux graphics drivers for the SGX530 family of chipsets - 387x/389x/OMAP35x/AM35x/37xx/DM81xx and Preliminary support for SGX540
+
+config PROPRIETARY_FORCE_SGXSDK_COPY
+	bool "Force SDK to copy the SGXSDK inside of RidgeRun SDK"
+	depends on PROPRIETARY_TI_GRAPHICS_SDK_DM81XX 
+	default y

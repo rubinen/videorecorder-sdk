@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# Set color format supported by SGX
+fbset -depth 32 -rgba 8/16,8/8,8/0,8/24
+
+RM_SGX_RSTCTRL=0x48180F04
+CM_SGX_CLKSTCTRL=0x48180900
+CM_SGX_SGX_CLKCTRL=0x48180920
+
+/etc/init.d/devmem2 $RM_SGX_RSTCTRL w 0x0     >/dev/null # Bring SGX out of reset
+/etc/init.d/devmem2 $CM_SGX_CLKSTCTRL w 0x2   >/dev/null # Enable the SGX clocks
+/etc/init.d/devmem2 $CM_SGX_SGX_CLKCTRL w 0x2 >/dev/null # Bring SGX out of idle
+/etc/init.d/devmem2 0x56000014 > /etc/init.d/sgxrevision.txt
+
+SGX_REVISION="$( cat /etc/init.d/sgxrevision.txt | grep "Value at address" | awk -F: '{print $2}')"
+BUILDTYPE="$(cat /opt/gfxsdkdemos/gfxinstallinfo.txt)"
+
+echo "SGX revision: " $SGX_REVISION
+echo "Build type: " $BUILDTYPE
+
+# Load modules
+if [[ -x /etc/init.d/rc.pvr ]]; then
+	cd /etc/init.d
+        ./rc.pvr start
+fi
+

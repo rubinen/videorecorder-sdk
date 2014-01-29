@@ -1,0 +1,5 @@
+#!/bin/sh
+
+export LD_LIBRARY_PATH=@DEVDIR@/bsp/local/lib
+@DEVDIR@/bsp/local/sbin/`basename $0`.orig $@
+

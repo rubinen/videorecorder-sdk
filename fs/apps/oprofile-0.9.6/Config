@@ -1,0 +1,41 @@
+config FS_APPS_OPROFILE
+	bool "oprofile 0.9.6"
+	select PROFILING
+	select OPROFILE
+	select FS_APPS_POPT
+	select FS_APPS_BINUTILS
+	select TR
+	select EXPR
+	select AWK
+	select MKTEMP
+	select PIDOF
+	select PRINTF
+	select WHICH
+	select DIRNAME
+	select TOOLCHAIN_INSTALL_CPP_SUPPORT
+	default n
+	help
+	    OProfile is a system-wide profiler for Linux systems, 
+            capable of profiling all running code at low overhead. 
+            OProfile is released under the GNU GPL.
+
+            It consists of a kernel driver and a daemon for collecting 
+            sample data, and several post-profiling tools for turning 
+            data into information.
+
+            OProfile leverages the hardware performance counters of the CPU 
+            to enable profiling of a wide variety of interesting statistics, 
+            which can also be used for basic time-spent profiling. All code 
+            is profiled: hardware and software interrupt handlers, kernel 
+            modules, the kernel, shared libraries, and applications.
+
+            Enabling this application will include the standard C++ library 
+            into the file system adding around 3.6MB to your target.
+
+            It will also include the popt library, bash shell, and adds 
+            awk, expr, mktemp and tr commands functionality to busybox.
+
+            This package will add around 24MB to your target.
+
+            If unsure, say N. 
+

@@ -1,0 +1,75 @@
+Index: lttng-tools-2.0/src/src/common/compat/poll.h
+===================================================================
+--- lttng-tools-2.0.orig/src/src/common/compat/poll.h	2012-02-29 09:40:42.253032375 -0600
++++ lttng-tools-2.0/src/src/common/compat/poll.h	2012-02-29 09:53:18.919010793 -0600
+@@ -50,10 +50,13 @@
+  */
+ #ifdef HAVE_EPOLL
+ #include <sys/epoll.h>
+-
+ /* See man epoll(7) for this define path */
+ #define COMPAT_EPOLL_PROC_PATH "/proc/sys/fs/epoll/max_user_watches"
+ 
++#ifndef EPOLL_CLOEXEC
++#define EPOLL_CLOEXEC 02000000
++#endif
++
+ enum {
+ 	/* Polling variables compatibility for epoll */
+ 	LPOLLIN = EPOLLIN,
+Index: lttng-tools-2.0/src/src/bin/lttng-sessiond/main.c
+===================================================================
+--- lttng-tools-2.0.orig/src/src/bin/lttng-sessiond/main.c	2012-02-29 09:48:08.345477290 -0600
++++ lttng-tools-2.0/src/src/bin/lttng-sessiond/main.c	2012-02-29 09:52:03.200968546 -0600
+@@ -297,7 +297,11 @@
+ {
+ 	int ret;
+ 
++#if 0
+ 	ret = pipe2(thread_quit_pipe, O_CLOEXEC);
++#else
++	ret = pipe(thread_quit_pipe);
++#endif
+ 	if (ret < 0) {
+ 		perror("thread quit pipe");
+ 		goto error;
+@@ -3980,7 +3984,11 @@
+  */
+ static int create_kernel_poll_pipe(void)
+ {
++#if 0
+ 	return pipe2(kernel_poll_pipe, O_CLOEXEC);
++#else
++	return pipe(kernel_poll_pipe);
++#endif
+ }
+ 
+ /*
+@@ -3988,7 +3996,11 @@
+  */
+ static int create_apps_cmd_pipe(void)
+ {
++#if 0
+ 	return pipe2(apps_cmd_pipe, O_CLOEXEC);
++#else
++	return pipe(apps_cmd_pipe);
++#endif
+ }
+ 
+ /*
+Index: lttng-tools-2.0/src/src/common/compat/compat-epoll.c
+===================================================================
+--- lttng-tools-2.0.orig/src/src/common/compat/compat-epoll.c	2012-02-29 09:53:45.176970716 -0600
++++ lttng-tools-2.0/src/src/common/compat/compat-epoll.c	2012-02-29 09:54:26.277541683 -0600
+@@ -46,7 +46,11 @@
+ 		size = poll_max_size;
+ 	}
+ 
++#if 0
+ 	ret = epoll_create1(flags);
++#else
++	ret = epoll_create(size);
++#endif
+ 	if (ret < 0) {
+ 		/* At this point, every error is fatal */
+ 		perror("epoll_create1");

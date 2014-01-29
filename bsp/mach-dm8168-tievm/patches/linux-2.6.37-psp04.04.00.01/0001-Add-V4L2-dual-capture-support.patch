@@ -1,0 +1,653 @@
+Date: Wed, 30 Jan 2013 08:21:00 
+Subject: TI81xx capture: Support for dual capture on the DM8168-EVM
+
+Description: The kernel board file needs to handle the chips located in the
+daughter board to pass data coming from the second video decoder to the
+Video Input Port 1 (VIP1). Also in the V4L2 capture driver we need to register
+both video decoders as subdevices and keep track of which subdevice the system
+will use according to the video node.
+
+Signed-off-by: David Soto <david.soto@ridgerun.com>
+---
+Index: kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c	2013-04-02 15:25:17.220480128 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c	2013-04-02 15:25:23.340480151 -0600
+@@ -3,6 +3,9 @@
+  *
+  * Copyright (C) 2010 Texas Instruments, Inc. - http://www.ti.com/
+  *
++ * Modified by: David Soto (david.soto@ridgerun.com)
++ *              Added support to feed video in VIP1
++ *
+  * This program is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU General Public License as
+  * published by the Free Software Foundation version 2.
+@@ -68,6 +71,8 @@
+ 
+ #define VPS_VC_IO_EXP_RESET_DEV_MASK        (0x0Fu)
+ #define VPS_VC_IO_EXP_SEL_VIN0_S1_MASK      (0x04u)
++#define VPS_VC_IO_EXP_SEL_VIN1_S1_MASK      (0x08u)
++#define VPS_VC_IO_EXP_DISABLE_SOG_MASK      (0xC0u)
+ #define VPS_VC_IO_EXP_THS7368_DISABLE_MASK  (0x10u)
+ #define VPS_VC_IO_EXP_THS7368_BYPASS_MASK   (0x20u)
+ #define VPS_VC_IO_EXP_THS7368_FILTER1_MASK  (0x40u)
+@@ -278,13 +283,19 @@
+ 	{
+ 		I2C_BOARD_INFO("pcf8575_1", 0x2e),
+ 	},
++	{
++		I2C_BOARD_INFO("pcf8575_1", 0x23),
++	},
+ };
+ 
+ static struct i2c_client *pcf8575_1_client;
+ static unsigned char pcf8575_1_port[2] = {0, 0};
+ 
+ static struct i2c_client *pcf8575_2_client;
+-static unsigned char pcf8575_2_port[2] = {0xFF, 0x2F};
++static unsigned char pcf8575_2_port[2] = {0xFF, 0x1F};
++
++static struct i2c_client *pcf8575_3_client;
++static unsigned char pcf8575_3_port[2] = {0xFF, 0x2F};
+ 
+ static struct i2c_client *ths7353_client;
+ 
+@@ -297,10 +308,37 @@
+ 			.len = 2,
+ 		};
+ 	msg.buf = pcf8575_2_port;
+-	if (VPS_SEL_TVP7002_DECODER == vid_decoder_id)
+-		pcf8575_2_port[1] &= ~VPS_VC_IO_EXP_SEL_VIN0_S1_MASK;
+-	else
+-		pcf8575_2_port[1] |= VPS_VC_IO_EXP_SEL_VIN0_S1_MASK;
++	switch (vid_decoder_id) {
++	case VPS_SEL_TVP7002_DECODER_VIP0:
++		{
++			pcf8575_2_port[1] &= ~VPS_VC_IO_EXP_SEL_VIN0_S1_MASK;
++			pcf8575_2_port[1] |=  VPS_VC_IO_EXP_DISABLE_SOG_MASK;
++			break;
++		}
++	case VPS_SEL_SIL9135_DECODER_VIP0:
++		{
++			pcf8575_2_port[1] |= VPS_VC_IO_EXP_SEL_VIN0_S1_MASK;
++			break;
++		}
++	/* Control the second SN74CBTLV16212GGR and 74CBTLV3253
++	 * (Bus-exchange switch and Dual multiplexer)
++	 */
++	case VPS_SEL_TVP7002_DECODER_VIP1:
++		{
++			pcf8575_2_port[1] &= ~VPS_VC_IO_EXP_SEL_VIN1_S1_MASK;
++			break;
++		}
++	case VPS_SEL_TVP5147_DECODER_VIP1:
++		{
++			pcf8575_2_port[1] |= VPS_VC_IO_EXP_SEL_VIN1_S1_MASK;
++			break;
++		}
++	default:
++		printk(KERN_ERR "Error: %s:%d wrong video decoder ID\n",
++				__func__, __LINE__);
++		return -1;
++	}
++
+ 	ret = (i2c_transfer(pcf8575_2_client->adapter, &msg, 1));
+ 
+ 	if (ret < 0)
+@@ -309,18 +347,47 @@
+ 	return ret;
+ }
+ EXPORT_SYMBOL(vps_ti816x_select_video_decoder);
++
+ #define I2C_RETRY_COUNT 10u
+-int vps_ti816x_set_tvp7002_filter(enum fvid2_standard standard)
++/**
++ * vps_ti816x_set_tvp7002_filter - Configure Video Filter
++ * @standard:		    standard to be used
++ * @vid_decoder_id:		Video decoder ID: VPS_SEL_TVP7002_DECODER_VIP0
++ *                                        VPS_SEL_TVP7002_DECODER_VIP1
++ * Check video standard and according to it select the correct filter in the
++ * THS7368 Filter and Video Amplifier chip
++ */
++int vps_ti816x_set_tvp7002_filter(enum fvid2_standard standard,
++				int vid_decoder_id)
+ {
+ 	int filter_sel;
+ 	int ret;
++
++	struct i2c_client *pcf8575_client;
++	unsigned char *pcf8575_port;
++
++	/* Identify which filter needs to be configured according
++	 * to the video decoder ID*/
++	if (VPS_SEL_TVP7002_DECODER_VIP0 == vid_decoder_id) {
++		pcf8575_client = pcf8575_2_client;
++		pcf8575_port = pcf8575_2_port;
++	} else
++	if (VPS_SEL_TVP7002_DECODER_VIP1 == vid_decoder_id) {
++		pcf8575_client = pcf8575_3_client;
++		pcf8575_port = pcf8575_3_port;
++	} else {
++		printk(KERN_ERR "Error: %s:%d wrong video decoder ID\n",
++			__func__, __LINE__);
++		return -1;
++	}
++
+ 	struct i2c_msg msg = {
+-			.addr = pcf8575_2_client->addr,
++			.addr = pcf8575_client->addr,
+ 			.flags = 0,
+ 			.len = 2,
+ 		};
+ 
+-	pcf8575_2_port[0] &= ~(VPS_VC_IO_EXP_THS7368_DISABLE_MASK
++	pcf8575_port[0] &= ~(VPS_VC_IO_EXP_THS7368_DISABLE_MASK
+ 			| VPS_VC_IO_EXP_THS7368_BYPASS_MASK
+ 			| VPS_VC_IO_EXP_THS7368_FILTER1_MASK
+ 			| VPS_VC_IO_EXP_THS7368_FILTER2_MASK);
+@@ -373,101 +440,19 @@
+ 		filter_sel = 0x01u;  /* Filter2: 0, Filter1: 1 */
+ 		break;
+ 	}
+-	pcf8575_2_port[0] |=
++	pcf8575_port[0] |=
+ 		(filter_sel << VPS_VC_IO_EXP_THS7368_FILTER_SHIFT);
+-	msg.buf = pcf8575_2_port;
+-	ret =  (i2c_transfer(pcf8575_2_client->adapter, &msg, 1));
++	msg.buf = pcf8575_port;
++	ret =  (i2c_transfer(pcf8575_client->adapter, &msg, 1));
+ 	if (ret < 0) {
+ 		printk(KERN_ERR "I2C: Transfer failed at %s %d with error code: %d\n",
+ 			__func__, __LINE__, ret);
+ 		return ret;
+ 	}
+ 	return 0;
+-#if 0
+-	int	status = FVID2_SOK;
+-	u8	regAddr, regValue;
+-	int	retry, error;
+-
+-	switch (standard) {
+-	case FVID2_STD_1080P_60:
+-	case FVID2_STD_1080P_50:
+-	case FVID2_STD_SXGA_60:
+-	case FVID2_STD_SXGA_75:
+-	case FVID2_STD_SXGAP_60:
+-	case FVID2_STD_SXGAP_75:
+-	case FVID2_STD_UXGA_60:
+-	    regValue = 0x9Cu;
+-	    break;
+-
+-	case FVID2_STD_1080I_60:
+-	case FVID2_STD_1080I_50:
+-	case FVID2_STD_1080P_24:
+-	case FVID2_STD_1080P_30:
+-	case FVID2_STD_720P_60:
+-	case FVID2_STD_720P_50:
+-	case FVID2_STD_SVGA_60:
+-	case FVID2_STD_SVGA_72:
+-	case FVID2_STD_SVGA_75:
+-	case FVID2_STD_SVGA_85:
+-	case FVID2_STD_XGA_60:
+-	case FVID2_STD_XGA_70:
+-	case FVID2_STD_XGA_75:
+-	case FVID2_STD_XGA_85:
+-	case FVID2_STD_WXGA_60:
+-	case FVID2_STD_WXGA_75:
+-	case FVID2_STD_WXGA_85:
+-	    regValue = 0x94u;
+-	    break;
+-
+-	case FVID2_STD_480P:
+-	case FVID2_STD_576P:
+-	case FVID2_STD_VGA_60:
+-	case FVID2_STD_VGA_72:
+-	case FVID2_STD_VGA_75:
+-	case FVID2_STD_VGA_85:
+-	    regValue = 0x4Cu;
+-	    break;
+-
+-	case FVID2_STD_NTSC:
+-	case FVID2_STD_PAL:
+-	case FVID2_STD_480I:
+-	case FVID2_STD_576I:
+-	case FVID2_STD_D1:
+-	    regValue = 0x04u;
+-	    break;
+-
+-	default:
+-	    regValue = 0x94u;
+-	    break;
+-	}
+-	for (retry = 0; retry < I2C_RETRY_COUNT; retry++) {
+-		regAddr = 0x01u;
+-		error = i2c_smbus_write_byte_data(ths7353_client,
+-				regAddr, regValue);
+-		if (error < 0) {
+-			printk(KERN_ERR "I2C write failed at %d\n\n", __LINE__);
+-			status = -1;
+-		}
+-		regAddr = 0x02u;
+-		error = i2c_smbus_write_byte_data(ths7353_client,
+-				regAddr, regValue);
+-		if (error < 0) {
+-			printk(KERN_ERR "I2C write failed at %d\n\n", __LINE__);
+-			status = -1;
+-		}
+-		regAddr = 0x03u;
+-		error = i2c_smbus_write_byte_data(ths7353_client,
+-				regAddr, regValue);
+-		if (error < 0) {
+-			printk(KERN_ERR "I2C write failed at %d\n\n", __LINE__);
+-			status = -1;
+-		}
+-	}
+-
+-	return status;
+-#endif
+ }
+ EXPORT_SYMBOL(vps_ti816x_set_tvp7002_filter);
++
+ int pcf8575_ths7375_enable(enum ti816x_ths_filter_ctrl ctrl)
+ {
+ 	struct i2c_msg msg = {
+@@ -558,6 +543,8 @@
+ 		pcf8575_1_client = client;
+ 	else if (client->addr == 0x21)
+ 		pcf8575_2_client = client;
++	else if (client->addr == 0x23)
++		pcf8575_3_client = client;
+ 	else if (client->addr == 0x2e)
+ 		ths7353_client = client;
+ 	 else
+@@ -569,6 +556,7 @@
+ {
+ 	pcf8575_1_client = NULL;
+ 	pcf8575_2_client = NULL;
++	pcf8575_3_client = NULL;
+ 	return 0;
+ }
+ 
+@@ -767,6 +755,46 @@
+ 	TI816X_MUX(SC0_DATA, OMAP_MUX_MODE1),	/* gpmc_a25 */
+ 	/* for controlling high address */
+ 	TI816X_MUX(GPMC_A27, OMAP_MUX_MODE1),	/* gpio-20 */
++
++	/* Pullup/Pulldown disabled */
++	#define DM8168_PULL_DIS			(1 << 3)
++
++	/* Capture VIP 1 Port A */
++	/*  VIN[1]A_CLK    */
++	TI816X_MUX(TSO1_DCLK,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[0]   */
++	TI816X_MUX(TSO1_DATA,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[1]   */
++	TI816X_MUX(TSO1_BYTSTRT,	OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[2]   */
++	TI816X_MUX(TSO1_PACVAL,	OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[3]   */
++	TI816X_MUX(TSO1_PACERR,	OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[4]   */
++	TI816X_MUX(TSI3_DCLK,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[5]   */
++	TI816X_MUX(TSI3_DATA,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[6]   */
++	TI816X_MUX(TSI3_BYTSTRT,	OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[7]   */
++	TI816X_MUX(TSI3_PACVAL, OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[8]   */
++	TI816X_MUX(TSI3_PACERR, OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[9]   */
++	TI816X_MUX(TSI1_DCLK,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[10]  */
++	TI816X_MUX(TSI1_DATA,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[11]  */
++	TI816X_MUX(TSI1_BYTSTRT, OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[12]  */
++	TI816X_MUX(TSI1_PACVAL, OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[13]  */
++	TI816X_MUX(TSI1_PACERR, OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[14]  */
++	TI816X_MUX(TSI2_DCLK,   OMAP_MUX_MODE1 | DM8168_PULL_DIS),
++	/*  VIN[1]A_D[15]  */
++	TI816X_MUX(TSI4_DCLK,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
++
+ 	{ .reg_offset = OMAP_MUX_TERMINATOR },
+ };
+ #else
+Index: kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/include/mach/board-ti816x.h
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/include/mach/board-ti816x.h	2013-04-02 15:25:17.192480128 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/include/mach/board-ti816x.h	2013-04-02 15:25:23.340480151 -0600
+@@ -5,6 +5,9 @@
+  *
+  * Copyright (C) 2010 Texas Instruments, Inc. - http://www.ti.com/
+  *
++ * Modified by: David Soto (david.soto@ridgerun.com)
++ *              Added support to feed video in VIP1
++ *
+  * This program is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU General Public License as
+  * published by the Free Software Foundation version 2.
+@@ -19,9 +22,10 @@
+ #define _BOARD_TI816X_H
+ #include <plat/ti81xx-vpss.h>
+ 
+-#define VPS_SEL_TVP7002_DECODER	0
+-#define VPS_SEL_SIL9135_DECODER	1
+-
++#define VPS_SEL_TVP7002_DECODER_VIP0	0
++#define VPS_SEL_SIL9135_DECODER_VIP0	1
++#define VPS_SEL_TVP7002_DECODER_VIP1	2
++#define VPS_SEL_TVP5147_DECODER_VIP1	3
+ 
+ enum ti816x_ths_filter_ctrl {
+ 	TI816X_THSFILTER_ENABLE_MODULE = 0,
+@@ -46,7 +50,8 @@
+ int ti816x_pcf8575_init(void);
+ int ti816x_pcf8575_exit(void);
+ int vps_ti816x_select_video_decoder(int vid_decoder_id);
+-int vps_ti816x_set_tvp7002_filter(enum fvid2_standard standard);
++int vps_ti816x_set_tvp7002_filter(enum fvid2_standard standard,
++			int vid_decoder_id);
+ #else
+ int pcf8575_ths7375_enable(enum ti816x_ths_filter_ctrl ctrl)
+ {
+@@ -72,7 +77,8 @@
+ {
+ 	return 0;
+ }
+-int vps_ti816x_set_tvp7002_filter(enum fvid2_standard standard)
++int vps_ti816x_set_tvp7002_filter(enum fvid2_standard standard,
++		int vid_decoder_id)
+ {
+ 	return 0;
+ }
+Index: kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c	2013-04-02 15:25:17.164480128 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c	2013-04-02 15:25:23.340480151 -0600
+@@ -8,6 +8,9 @@
+  * Some code and ideas taken from TI OMAP2 Platforms
+  * by Tomi Valkeinen.
+  *
++ * Modified by: David Soto (david.soto@ridgerun.com)
++ *              Added support to feed video in VIP1
++ *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+  * Free Software Foundation; either version 2 of the License, or (at your
+@@ -230,7 +233,7 @@
+ 	{
+ 		.input = {
+ 			.index		= 0,
+-			.name		= "Component",
++			.name		= "Component0",
+ 			.type		= V4L2_INPUT_TYPE_CAMERA,
+ 			.std		= V4L2_STD_UNKNOWN,
+ 			.capabilities	= V4L2_OUT_CAP_PRESETS,
+@@ -245,7 +248,7 @@
+ 	{
+ 		.input = {
+ 			.index		= 0,
+-			.name		= "Component",
++			.name		= "Component1",
+ 			.type		= V4L2_INPUT_TYPE_CAMERA,
+ 			.std		= V4L2_STD_UNKNOWN,
+ 			.capabilities	= V4L2_OUT_CAP_PRESETS,
+@@ -330,12 +333,17 @@
+ 			vps_ti816x_select_video_decoder;
+ 		hdvpss_capture_sdev_info[0].ti81xxvin_set_mode =
+ 			vps_ti816x_set_tvp7002_filter;
+-		hdvpss_capture_sdev_info[0].decoder_id = 0;
++		hdvpss_capture_sdev_info[0].decoder_id =
++			VPS_SEL_TVP7002_DECODER_VIP0;
++
++		/*Added functions to control the chips on the daughter card
++		 *in order to get the data into VIP1*/
+ 		hdvpss_capture_sdev_info[1].ti81xxvin_select_decoder =
+-			NULL;
++			vps_ti816x_select_video_decoder;
+ 		hdvpss_capture_sdev_info[1].ti81xxvin_set_mode =
+-			NULL;
+-		hdvpss_capture_sdev_info[1].decoder_id = 0;
++			vps_ti816x_set_tvp7002_filter;
++		hdvpss_capture_sdev_info[1].decoder_id =
++			VPS_SEL_TVP7002_DECODER_VIP1;
+ 	}
+ 	r = platform_device_register(&hdvpss_capture_dev);
+ 	if (r)
+Index: kernel/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c	2013-04-02 15:25:23.240480151 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c	2013-04-02 15:25:26.836480165 -0600
+@@ -6,6 +6,9 @@
+  * Copyright (C) 2010 Texas Instruments
+  * Author: Hardik Shah(hardik.shah@ti.com)
+  *
++ * Modified by: David Soto (david.soto@ridgerun.com)
++ *              Added dual capture support
++ *
+  * Davinci TI81xx HDVPSS capture driver is used as a reference driver.
+  *
+  * This program is free software; you can redistribute it and/or modify it
+@@ -1325,21 +1328,21 @@
+ 		case V4L2_DV_1080P60:
+ 		case V4L2_DV_1080P50:
+ 			ret = subdev_info[sd_index].ti81xxvin_set_mode(
+-					FVID2_STD_1080P_60);
++			FVID2_STD_1080P_60, subdev_info[sd_index].decoder_id);
+ 		break;
+ 		case V4L2_DV_720P60:
+ 		case V4L2_DV_720P50:
+ 			ret = subdev_info[sd_index].ti81xxvin_set_mode(
+-					FVID2_STD_720P_60);
++			FVID2_STD_720P_60, subdev_info[sd_index].decoder_id);
+ 		break;
+ 		case V4L2_DV_1080I60:
+ 		case V4L2_DV_1080I50:
+ 			ret = subdev_info[sd_index].ti81xxvin_set_mode(
+-					FVID2_STD_1080I_60);
++			FVID2_STD_1080I_60, subdev_info[sd_index].decoder_id);
+ 		break;
+ 		default:
+ 			ret = subdev_info[sd_index].ti81xxvin_set_mode(
+-					FVID2_STD_1080P_60);
++			FVID2_STD_1080P_60, subdev_info[sd_index].decoder_id);
+ 		}
+ 	}
+ 	/* Configure the default format information according to the std
+@@ -2181,6 +2184,15 @@
+ 	ti81xxvin_dbg(2, debug, "ti81xxvin_open\n");
+ 
+ 	inst = video_get_drvdata(vdev);
++	/* Identify which is the subdevice that will be used to ask about
++	 * the presets of the video coming to the input ports VIP
++	 */
++	if (TI81XXVIN_INSTANCE0_VIDEO == inst->instance_id ||
++		TI81XXVIN_INSTANCE1_VIDEO == inst->instance_id)
++			inst->curr_sd_index = 0;
++	else
++			inst->curr_sd_index = 1;
++
+ 	setup_timer(&inst->overflow_timer, ti81xxvin_overflow_handler,
+ 		(unsigned long)inst);
+ 
+@@ -2193,10 +2205,10 @@
+ 
+ 	if (NULL == inst->curr_subdev_info) {
+ 		/**
+-		 * searinst through the sub device to see a registered
++		 * search through the sub devices to see a registered
+ 		 * sub device and make it as current sub device
+ 		 */
+-		for (i = 0; i < config->subdev_count; i++) {
++		for (i = inst->curr_sd_index; i < config->subdev_count; i++) {
+ 			if (ti81xxvin_obj.sd[i]) {
+ 				/* the sub device is registered */
+ 				inst->curr_subdev_info =
+@@ -2430,12 +2442,16 @@
+ 	struct resource *hdvpss_resource;
+ 
+ 	ti81xxvin_dev = &pdev->dev;
++	/*Here we reserve memory for each instance - 4 instances*/
+ 	err = ti81xxvin_initialize();
+ 	if (err) {
+ 		v4l2_err(ti81xxvin_dev->driver, "Error initializing TI81xx\n");
+ 		/* TODO Deinitialize HDVPSS */
+ 		return err;
+ 	}
++	/*We have 2 resources,TVPs. We are getting the address in memory
++	 * for each resource.
++	 */
+ 	for (i = 0; i < pdev->num_resources; i++) {
+ 		hdvpss_resource = &pdev->resource[i];
+ 		if (hdvpss_resource->flags == IORESOURCE_MEM) {
+@@ -2444,6 +2460,12 @@
+ 				hdvpss_resource->end - hdvpss_resource->start);
+ 		}
+ 	}
++	/* For each of the capture devices (4) assign the memory address of its
++	 * video decoder, first 2 for TVP0, the second 2 for TVP1.
++	 * Create video device and fill out with the correct information:
++	 * name, minor, fops, ioctls, etc
++	 * Finally to each instance assign a video_device
++	 */
+ 	for (i = 0; i < TI81XXVIN_CAPTURE_MAX_DEVICES; i++) {
+ 		/* Get the pointer to the instance object */
+ 		inst = ti81xxvin_obj.dev[i];
+@@ -2475,6 +2497,8 @@
+ 		/* Set video_dev to the video device */
+ 		inst->video_dev = vfd;
+ 	}
++
++	/*Capture control, one for each capture device 4*/
+ 	t = vps_capt_get_num_cap();
+ 	num_capt = 0;
+ 	for (i = 0; i < t; i++) {
+@@ -2488,6 +2512,10 @@
+ 		ti81xxvin_obj.captctrl[ti81xxvin_obj.act_num_capt_ctrl++] =
+ 			cctrl;
+ 	}
++    /*For each of the 4 capture devices set an instance id, a capture control
++    * buffers and finally register the video device and setting which
++    * node number we want
++    */
+ 	for (j = 0; j < TI81XXVIN_CAPTURE_MAX_DEVICES; j++) {
+ 		inst = ti81xxvin_obj.dev[j];
+ 		inst->instance_id = j;
+@@ -2515,7 +2543,10 @@
+ 		i2c_adap = i2c_get_adapter(2);
+ 
+ 	config = pdev->dev.platform_data;
++	/*These are 2, one for each TVP*/
+ 	subdev_count = config->subdev_count;
++
++	/*Alloc memory for each subdevice*/
+ 	ti81xxvin_obj.sd = kmalloc(sizeof(struct v4l2_subdev *) *subdev_count,
+ 				GFP_KERNEL);
+ 	if (ti81xxvin_obj.sd == NULL) {
+@@ -2531,7 +2562,7 @@
+ 			" v4l2 device\n");
+ 		goto probe_subdev_out;
+ 	}
+-	for (i = 0; i < 1; i++) {
++	for (i = 0; i < 2; i++) {
+ 		subdevdata = &config->subdev_info[i];
+ 		ti81xxvin_obj.sd[i] =
+ 			v4l2_i2c_new_subdev_board(&ti81xxvin_obj.v4l2_dev,
+@@ -2544,6 +2575,9 @@
+ 			err = -ENODEV;
+ 			goto probe_subdev_out;
+ 		}
++	/*Call select decoder such that the data can be feed in the
++	* correct port
++	*/
+ 		if (subdevdata->ti81xxvin_select_decoder)
+ 			err = subdevdata->ti81xxvin_select_decoder(
+ 				subdevdata->decoder_id);
+@@ -2553,8 +2587,8 @@
+ 			goto probe_subdev_out;
+ 		}
+ 		if (subdevdata->ti81xxvin_set_mode)
+-			err = subdevdata->ti81xxvin_set_mode(
+-					FVID2_STD_1080P_60);
++			err = subdevdata->ti81xxvin_set_mode(FVID2_STD_1080P_60,
++			 subdevdata->decoder_id);
+ 		if (err < 0) {
+ 			ti81xxvin_err("Error setting mode on decoder\n");
+ 			goto probe_subdev_out;
+Index: kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8148evm.c
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8148evm.c	2013-04-02 15:25:17.204480128 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8148evm.c	2013-04-02 15:25:23.340480151 -0600
+@@ -191,7 +191,16 @@
+ EXPORT_SYMBOL(vps_ti814x_select_video_decoder);
+ 
+ #define I2C_RETRY_COUNT 10u
+-int vps_ti814x_set_tvp7002_filter(enum fvid2_standard standard)
++/**
++ * vps_ti814x_set_tvp7002_filter - Configure Video Filter
++ * @standard:		    standard to be used
++ * @vid_decoder_id:		Video decoder ID: VPS_SEL_TVP7002_DECODER
++ *
++ * Check video standard and according to it select the correct filter in the
++ * THS7368 Filter and Video Amplifier chip
++ */
++int vps_ti814x_set_tvp7002_filter(enum fvid2_standard standard,
++			int vid_decoder_id)
+ {
+ 	int filter_sel;
+ 	int ret;
+Index: kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/include/mach/board-ti814x.h
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/include/mach/board-ti814x.h	2013-04-02 15:25:17.176480128 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/include/mach/board-ti814x.h	2013-04-02 15:25:23.340480151 -0600
+@@ -27,7 +27,8 @@
+ int ti814x_pcf8575_init(void);
+ int ti814x_pcf8575_exit(void);
+ int vps_ti814x_select_video_decoder(int vid_decoder_id);
+-int vps_ti814x_set_tvp7002_filter(enum fvid2_standard standard);
++int vps_ti814x_set_tvp7002_filter(enum fvid2_standard standard,
++			int vid_decoder_id);
+ #else
+ int ti814x_pcf8575_init(void)
+ {
+@@ -41,7 +42,8 @@
+ {
+ 	return 0;
+ }
+-int vps_ti814x_set_tvp7002_filter(enum fvid2_standard standard)
++int vps_ti814x_set_tvp7002_filter(enum fvid2_standard standard,
++			int vid_decoder_id)
+ {
+ 	return 0;
+ }
+Index: kernel/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h	2013-04-02 15:25:17.236480128 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h	2013-04-02 15:25:23.340480151 -0600
+@@ -49,7 +49,8 @@
+ 	   decoders are muxed on board to same VIP port. This
+ 	   function connects, this decoder to VIP
+ 	 */
+-	int (*ti81xxvin_set_mode) (enum fvid2_standard standard);
++	int (*ti81xxvin_set_mode) (enum fvid2_standard standard,
++			int vid_decoder_id);
+ 	/* There are filters on board which needs to be configured
+ 	   based on dv_preset. This function allows to configure
+ 	   those filter if they are present.
+Index: kernel/linux-2.6.37-psp04.04.00.01/drivers/media/video/tvp7002.c
+===================================================================
+--- kernel.orig/linux-2.6.37-psp04.04.00.01/drivers/media/video/tvp7002.c	2013-04-02 15:24:57.648480053 -0600
++++ kernel/linux-2.6.37-psp04.04.00.01/drivers/media/video/tvp7002.c	2013-04-02 15:54:07.472486771 -0600
+@@ -246,7 +246,7 @@
+ static const struct i2c_reg_value tvp7002_parms_1080P60[] = {
+ 	{ TVP7002_HPLL_FDBK_DIV_MSBS, 0x89, TVP7002_WRITE },
+ 	{ TVP7002_HPLL_FDBK_DIV_LSBS, 0x80, TVP7002_WRITE },
+-	{ TVP7002_HPLL_CRTL, 0xE0, TVP7002_WRITE },
++	{ TVP7002_HPLL_CRTL, 0xa0, TVP7002_WRITE },
+ 	{ TVP7002_HPLL_PHASE_SEL, 0xA0, TVP7002_WRITE },
+ 	{ TVP7002_AVID_START_PIXEL_LSBS, 0x00, TVP7002_WRITE },
+ 	{ TVP7002_AVID_START_PIXEL_MSBS, 0x01, TVP7002_WRITE },

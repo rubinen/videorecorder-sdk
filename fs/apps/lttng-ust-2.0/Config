@@ -1,0 +1,5 @@
+config FS_APPS_LTTNG_UST
+	bool "lttng-ust-2.0"
+	select FS_APPS_USERSPACE_RCU
+	help
+	    User space support for lttng toolchain

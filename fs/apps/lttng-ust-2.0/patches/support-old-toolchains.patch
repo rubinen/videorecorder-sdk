@@ -1,0 +1,17 @@
+Index: lttng-ust-2.0/src/liblttng-ust-comm/lttng-ust-comm.c
+===================================================================
+--- lttng-ust-2.0.orig/src/liblttng-ust-comm/lttng-ust-comm.c	2012-02-29 09:31:40.053287057 -0600
++++ lttng-ust-2.0/src/liblttng-ust-comm/lttng-ust-comm.c	2012-02-29 09:32:39.172966505 -0600
+@@ -23,6 +23,12 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <sys/socket.h>
++
++/* On kernels newer than 2.6.27 SOCK_CLOEXEC is supported */
++#ifndef SOCK_CLOEXEC
++#define SOCK_CLOEXEC 02000000
++#endif
++
+ #include <sys/stat.h>
+ #include <sys/types.h>
+ #include <sys/un.h>

@@ -1,0 +1,26 @@
+Index: valgrind-3.6.1/src/configure
+===================================================================
+--- valgrind-3.6.1.orig/src/configure	2011-02-15 11:34:14.000000000 -0600
++++ valgrind-3.6.1/src/configure	2013-01-09 09:45:24.413635300 -0600
+@@ -5345,10 +5345,10 @@
+         { $as_echo "$as_me:${as_lineno-$LINENO}: checking for the kernel version" >&5
+ $as_echo_n "checking for the kernel version... " >&6; }
+ 
+-        kernel=`uname -r`
++        kernel=$KERNEL
+ 
+         case "${kernel}" in
+-             2.6.*)
++             *2.6.*)
+         	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: 2.6 family (${kernel})" >&5
+ $as_echo "2.6 family (${kernel})" >&6; }
+ 
+@@ -5356,7 +5356,7 @@
+ 
+         	    ;;
+ 
+-             2.4.*)
++             *2.4.*)
+         	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: 2.4 family (${kernel})" >&5
+ $as_echo "2.4 family (${kernel})" >&6; }
+ 

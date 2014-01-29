@@ -1,0 +1,9 @@
+config FS_APPS_LTRACE
+	bool "ltrace-0.7.2"
+	default n
+	select FS_APPS_LIBELF
+	help
+		ltrace intercepts and records dynamic library calls which are
+		called by an executed process and the signals received by that
+		process. It can also intercept and print the system calls 
+		executed by the program.

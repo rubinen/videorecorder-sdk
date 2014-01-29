@@ -1,0 +1,271 @@
+Index: graphics-sdk-4_04_00_02/sgxsdk/gfx_rel_es6.x/install.sh
+===================================================================
+--- graphics-sdk-4_04_00_02.orig/sgxsdk/gfx_rel_es6.x/install.sh	2012-12-11 10:52:19.000000000 -0600
++++ graphics-sdk-4_04_00_02/sgxsdk/gfx_rel_es6.x/install.sh	2012-12-12 10:30:27.728214203 -0600
+@@ -1,20 +1,10 @@
+ #!/bin/sh
+ 
+ # PowerVR SGX DDK for Embedded Linux - installation script
+-#
+-# Copyright	2004-2006 by Imagination Technologies Limited.
+-#				All rights reserved.  No part of this software, either
+-#				material or conceptual may be copied or distributed,
+-#				transmitted, transcribed, stored in a retrieval system
+-#				or translated into any human or computer language in any
+-#				form by any means, electronic, mechanical, manual or
+-#				other-wise, or disclosed to third parties without the
+-#				express written permission of Imagination Technologies
+-#				Limited, Unit 8, HomePark Industrial Estate,
+-#				King's Langley, Hertfordshire, WD4 8LZ, U.K.
++# Created by Ridgerun 2012
++# Based on version created by:
++#    Copyright	2004-2006 by Imagination Technologies Limited.
+ 
+-# Auto-generated for omap3430_linux from embedded.pj 1.6.16.4117
+-#
+ 
+ # PVR Consumer services version number
+ #
+@@ -23,6 +13,7 @@
+ # Where we record what we did so we can undo it.
+ #
+ DDK_INSTALL_LOG=/etc/powervr_ddk_install.log
++SUDO=sudo
+ 
+ # basic installation function
+ # $1=blurb
+@@ -43,8 +34,8 @@
+ 	DESTFILE=${DISCIMAGE}$2
+ 	DESTDIR=`dirname $DESTFILE`
+ 
+-	if [ ! -e $1 ]; then
+-		 	[ -n "$VERBOSE" ] && echo "skipping file $1 -> $2"
++	if [ ! -e ${SRCDIR}/$1 ]; then
++		 	[ -n "$V" ] && echo "skipping file $1 -> $2"
+ 		 return
+ 	fi
+ 	
+@@ -56,18 +47,18 @@
+ 		fi
+ 	else
+ 		$DOIT mkdir -p ${DESTDIR} || bail "Couldn't mkdir -p ${DESTDIR}"
+-		[ -n "$VERBOSE" ] && echo "Created directory `dirname $2`"
++		[ -n "$V" ] && echo "Created directory `dirname $2`"
+ 	fi
+ 
+ 	# Delete the original so that permissions don't persist.
+ 	#
+ 	$DOIT rm -f $DESTFILE
+ 
+-	$DOIT cp -f $1 $DESTFILE || bail "Couldn't copy $1 to $DESTFILE"
+-	$DOIT chmod $4 ${DESTFILE}
+-	$DOIT chown $5 ${DESTFILE}
++	$DOIT cp -f ${SRCDIR}/$1 $DESTFILE || bail "Couldn't copy $1 to $DESTFILE"
++	$DOIT  $SUDO chmod $4 ${DESTFILE}
++	$DOIT  $SUDO chown $5 ${DESTFILE}
+ 
+-	echo "$3 `basename $1` -> $2"
++	[ -n "$V" ] && echo  "$3 `basename $1` -> $2"
+ 	$DOIT echo "file $2" >>${DISCIMAGE}${DDK_INSTALL_LOG}
+ }
+ 
+@@ -80,7 +71,7 @@
+ 	DESTDIR=`dirname $DESTFILE`
+ 
+ 	if [ ! -e ${DESTDIR}/$1 ]; then
+-		 [ -n "$VERBOSE" ] && echo $DOIT "skipping link ${DESTDIR}/$1"
++		 [ -n "$V" ] && echo $DOIT "skipping link ${DESTDIR}/$1"
+ 		 return
+ 	fi
+ 
+@@ -92,7 +83,7 @@
+ 		fi
+ 	else
+ 		$DOIT mkdir -p ${DESTDIR} || bail "Couldn't mkdir -p ${DESTDIR}"
+-		[ -n "$VERBOSE" ] && echo "Created directory `dirname $2`"
++		[ -n "$V" ] && echo "Created directory `dirname $2`"
+ 	fi
+ 
+ 	# Delete the original so that permissions don't persist.
+@@ -101,7 +92,7 @@
+ 
+ 	$DOIT ln -s $1 $DESTFILE || bail "Couldn't link $1 to $DESTFILE"
+ 	$DOIT echo "link $2" >>${DISCIMAGE}${DDK_INSTALL_LOG}
+-	[ -n "$VERBOSE" ] && echo " linked `basename $1` -> $2"
++	[ -n "$V" ] && echo " linked `basename $1` -> $2"
+ }
+ 
+ # Tree-based installation function
+@@ -115,12 +106,12 @@
+ 		$DOIT mkdir -p ${DISCIMAGE}$2 || bail "Couldn't mkdir -p ${DISCIMAGE}$2"
+ 	fi
+ 	if [ "$DONTDOIT" ]; then
+-		echo "### tar -C $1 -cf - . | tar -C ${DISCIMAGE}$2 -x${VERBOSE}f -" 
++		echo "### tar -C $1 -cf - . | tar -C ${DISCIMAGE}$2 -x${V}f -"
+ 	else
+-		tar -C $1 -cf - . | tar -C ${DISCIMAGE}$2 -x${VERBOSE}f -
++		tar -C $1 -cf - . | tar -C ${DISCIMAGE}$2 -x${V}f -
+ 	fi
+ 	if [ $? = 0 ]; then
+-		echo "Installed $3 in ${DISCIMAGE}$2"
++		[ -n "$V" ] && echo  "Installed $3 in ${DISCIMAGE}$2"
+ 		$DOIT echo "tree $2" >>${DISCIMAGE}${DDK_INSTALL_LOG}
+ 	else
+ 		echo "Failed copying $3 from $1 to ${DISCIMAGE}$2"
+@@ -141,7 +132,7 @@
+ 	while read type data; do
+ 		case $type in
+ 		version)	# do nothing
+-			echo "Uninstalling existing version $data"
++			[ -n "$V" ] && echo  "     Uninstalling existing version $data"
+ 			VERSION="$data"
+ 			;;
+ 		link|file) 
+@@ -151,7 +142,7 @@
+ 			elif ! $DOIT rm -f ${DISCIMAGE}${data}; then
+ 				BAD=1;
+ 			else
+-				[ -n "$VERBOSE" ] && echo "Deleted $type $data"
++				[ -n "$V" ] && echo "Deleted $type $data"
+ 			fi
+ 			;;
+ 		tree)		# so far, do nothing
+@@ -160,7 +151,7 @@
+ 	done < ${DISCIMAGE}${DDK_INSTALL_LOG};
+ 
+ 	if [ $BAD = 0 ]; then
+-		echo "Uninstallation completed."
++		[ -n "$V" ] && echo  "     Uninstallation completed."
+ 		$DOIT rm -f ${DISCIMAGE}${DDK_INSTALL_LOG}
+ 	else
+ 		echo "Uninstallation failed!!!"
+@@ -181,6 +172,8 @@
+ 	echo "         --no-display  don't install integrated PowerVR display module"
+ 	echo "         --no-bcdevice don't install buffer class device module"
+ 	echo "         --root path   use path as the root of the install file system"
++	echo "         --src         source dir used to grab the installation files"
++	echo "         --kernel      kernel version"
+ 	exit 1
+ }
+ 
+@@ -193,9 +186,9 @@
+ 
+ 	# Check the kernel module directory is there
+ 	#
+-	if [ ! -d "${DISCIMAGE}/lib/modules/$(uname -r)" ]; then
++	if [ ! -d "${DISCIMAGE}/lib/modules/${KERNELVERSION}" ]; then
+ 		echo ""
+-		echo "Can't find /lib/modules/$(uname -r) on file system installation root"
++		echo "Can't find /lib/modules/${KERNELVERSION} on file system installation root"
+ 		echo -n "There is no kernel module area setup yet. "
+ 		if [ "$from" = target ]; then
+ 			echo "On your build machine you should invoke:"
+@@ -216,29 +209,29 @@
+ 	# Touch some files that might not exist so that busybox/modprobe don't complain
+ 	#
+ 	
+-	install_file pvrsrvkm.ko /lib/modules/$(uname -r)/kernel/drivers/char/pvrsrvkm.ko "kernel module" 0644 0:0
++	install_file pvrsrvkm.ko /lib/modules/${KERNELVERSION}/kernel/drivers/char/pvrsrvkm.ko "kernel module" 0644 0:0
+ 	if [ "$host" = 1 ]; then
+-			grep -v -e "drivers/char/pvrsrvkm.ko" ${DISCIMAGE}/lib/modules/$(uname -r)/modules.dep >/tmp/modules.$$.tmp
+-	echo "/lib/modules/$(uname -r)/kernel/drivers/char/pvrsrvkm.ko:" >>/tmp/modules.$$.tmp
+-	cp /tmp/modules.$$.tmp ${DISCIMAGE}/lib/modules/$(uname -r)/modules.dep
++			grep -v -e "drivers/char/pvrsrvkm.ko" ${DISCIMAGE}/lib/modules/${KERNELVERSION}/modules.dep >/tmp/modules.$$.tmp
++	echo "/lib/modules/${KERNELVERSION}/kernel/drivers/char/pvrsrvkm.ko:" >>/tmp/modules.$$.tmp
++	cp /tmp/modules.$$.tmp ${DISCIMAGE}/lib/modules/${KERNELVERSION}/modules.dep
+ 	fi
+ 
+ if [ -z "$NO_DISPLAYMOD" ]; then
+-		install_file omaplfb.ko /lib/modules/$(uname -r)/kernel/drivers/char/omaplfb.ko "kernel module" 0644 0:0
++		install_file omaplfb.ko /lib/modules/${KERNELVERSION}/kernel/drivers/char/omaplfb.ko "kernel module" 0644 0:0
+ 	if [ "$host" = 1 ]; then
+-			grep -v -e "drivers/char/omaplfb.ko" ${DISCIMAGE}/lib/modules/$(uname -r)/modules.dep >/tmp/modules.$$.tmp
+-echo "/lib/modules/$(uname -r)/kernel/drivers/char/omaplfb.ko: /lib/modules/$(uname -r)/kernel/drivers/char/pvrsrvkm.ko" >>/tmp/modules.$$.tmp
+-	cp /tmp/modules.$$.tmp ${DISCIMAGE}/lib/modules/$(uname -r)/modules.dep
++			grep -v -e "drivers/char/omaplfb.ko" ${DISCIMAGE}/lib/modules/${KERNELVERSION}/modules.dep >/tmp/modules.$$.tmp
++echo "/lib/modules/${KERNELVERSION}/kernel/drivers/char/omaplfb.ko: /lib/modules/${KERNELVERSION}/kernel/drivers/char/pvrsrvkm.ko" >>/tmp/modules.$$.tmp
++	cp /tmp/modules.$$.tmp ${DISCIMAGE}/lib/modules/${KERNELVERSION}/modules.dep
+ 	fi
+ 
+ fi
+ 
+ if [ -z "$NO_BCDEVICE" ]; then
+-		install_file bc_example.ko /lib/modules/$(uname -r)/kernel/drivers/char/bc_example.ko "kernel module" 0644 0:0
++		install_file bc_example.ko /lib/modules/${KERNELVERSION}/kernel/drivers/char/bc_example.ko "kernel module" 0644 0:0
+ 	if [ "$host" = 1 ]; then
+-			grep -v -e "drivers/char/bc_example.ko" ${DISCIMAGE}/lib/modules/$(uname -r)/modules.dep >/tmp/modules.$$.tmp
+-echo "/lib/modules/$(uname -r)/kernel/drivers/char/bc_example.ko: /lib/modules/$(uname -r)/kernel/drivers/char/pvrsrvkm.ko" >>/tmp/modules.$$.tmp
+-	cp /tmp/modules.$$.tmp ${DISCIMAGE}/lib/modules/$(uname -r)/modules.dep
++			grep -v -e "drivers/char/bc_example.ko" ${DISCIMAGE}/lib/modules/${KERNELVERSION}/modules.dep >/tmp/modules.$$.tmp
++echo "/lib/modules/${KERNELVERSION}/kernel/drivers/char/bc_example.ko: /lib/modules/${KERNELVERSION}/kernel/drivers/char/pvrsrvkm.ko" >>/tmp/modules.$$.tmp
++	cp /tmp/modules.$$.tmp ${DISCIMAGE}/lib/modules/${KERNELVERSION}/modules.dep
+ 	fi
+ 
+ fi
+@@ -409,12 +402,20 @@
+ while [ "$1" ]; do
+ 	case "$1" in
+ 	-v|--verbose)
+-		VERBOSE=v;
++		V=v;
+ 		;;
+ 	-r|--root)
+ 		DISCIMAGE=$2;
+ 		shift;
+ 		;;
++	-s|--src)
++		SRCDIR=$2;
++		shift;
++		;;
++	-k|--kernel)
++		KERNELVERSION=$2;
++		shift;
++		;;
+ 	-u|--uninstall)
+ 		UNINSTALL=y
+ 		;;
+@@ -450,15 +451,15 @@
+ 		from=target;
+ 		DISCIMAGE=/;
+ 		;;
+-i?86*)	host=1;
+-		from=host;
++i?86*)	host=0;
++		from=target;
+ 		if [ -z "$DISCIMAGE" ]; then	
+ 			echo "DISCIMAGE must be set for installation to be possible." >&2
+ 			exit 1
+ 		fi
+ 		;;
+-x86_64*)	host=1;
+-		from=host;
++x86_64*)	host=0;
++		from=target;
+ 		if [ -z "$DISCIMAGE" ]; then	
+ 			echo "DISCIMAGE must be set for installation to be possible." >&2
+ 			exit 1
+@@ -474,11 +475,8 @@
+ 	exit 1
+ fi
+ 
+-echo
+-echo "Installing PowerVR Consumer/Embedded DDK 1.6.16.4117 on $from"
+-echo
+-echo "File system installation root is $DISCIMAGE"
+-echo
++echo "     Installing PowerVR Consumer/Embedded DDK 1.6.16.4117 on $from"
++echo "     File system installation root is $DISCIMAGE"
+ 
+ # Uninstall whatever's there already.
+ #
+@@ -492,9 +490,4 @@
+ 
+ # All done...
+ #
+-echo 
+-echo "Installation complete!"
+-if [ "$host" = 0 ]; then
+-   echo "You may now reboot your target."
+-fi
+-echo
++echo "     Installation complete!"

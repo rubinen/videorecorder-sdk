@@ -1,0 +1,45 @@
+Index: cups-1.5.4/src/configure
+===================================================================
+--- cups-1.5.4.orig/src/configure	2011-09-08 13:33:52.580402174 -0600
++++ cups-1.5.4/src/configure	2011-09-08 13:34:31.116040164 -0600
+@@ -5961,11 +5961,6 @@
+ 		IRIX*)
+ 			libdir="$exec_prefix/lib32"
+ 			;;
+-		Linux*)
+-			if test -d /usr/lib64; then
+-				libdir="$exec_prefix/lib64"
+-			fi
+-			;;
+ 		HP-UX*)
+ 			if test -d /usr/lib/hpux32; then
+ 				libdir="$exec_prefix/lib/hpux32"
+@@ -7073,7 +7068,6 @@
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking if GCC supports -fstack-protector" >&5
+ $as_echo_n "checking if GCC supports -fstack-protector... " >&6; }
+ 	OLDCFLAGS="$CFLAGS"
+-	CFLAGS="$CFLAGS -fstack-protector"
+ 	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -7086,7 +7080,6 @@
+ }
+ _ACEOF
+ if ac_fn_c_try_link "$LINENO"; then :
+-  OPTIM="$OPTIM -fstack-protector"
+ 		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+ $as_echo "yes" >&6; }
+ else
+Index: cups-1.5.4/src/Makedefs.in
+===================================================================
+--- cups-1.5.4.orig/src/Makedefs.in	2011-09-08 13:35:14.695962678 -0600
++++ cups-1.5.4/src/Makedefs.in	2011-09-08 13:35:19.069144610 -0600
+@@ -274,7 +274,7 @@
+ # Rules...
+ #
+ 
+-.SILENT:
++#.SILENT:
+ .SUFFIXES:	.1 .1.gz .1m .1m.gz .3 .3.gz .5 .5.gz .7 .7.gz .8 .8.gz .a .c .cxx .h .man .o .32.o .64.o .gz
+ 
+ .c.o:

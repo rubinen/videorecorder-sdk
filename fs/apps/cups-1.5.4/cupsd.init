@@ -1,0 +1,45 @@
+#!/bin/sh -e
+
+case "$1" in
+start)
+	echo "Starting CUPS Scheduler"
+	chmod -R 755 /usr/lib/cups/daemon
+	chmod -R 755 /usr/lib/cups/backend
+	chmod -R 755 /usr/lib/cups/filter
+	chown -R root:lp /usr/lib/cups/filter
+	chown -R root:lp /usr/lib/cups/daemon
+	chown -R root:lp /usr/lib/cups/backend
+	if [ -e /dev/usb/ ] ; then
+	    chmod -R 777 /dev/usb/
+	else
+	   echo "Please check if your printer is connected to your board"
+	fi
+	if [ -e /dev/bus/usb/ ] ; then
+		chmod -R 777 /dev/bus/usb/
+	fi
+
+	cupsd&
+	sleep 1
+
+	#lpadmin -p Sony -v usb://SONY/UP-DR80MD -m SONY_UP-DR80MD.ppd
+	#lpstat -p Sony
+	#cupsaccept Sony
+	#cupsenable Sony
+	#lpstat -p Sony
+	#cupsaccept Sony
+	#lpoptions -d Sony
+	;;
+
+stop)
+	echo "Stoping CUPS Scheduler"
+	killall cupsd >/dev/null 2>/dev/null;
+	;;
+
+*)
+	echo "Usage: /etc/init.d/cupsd {start|stop}"
+	exit 1
+	;;
+esac
+
+exit 0
+

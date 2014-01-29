@@ -1,0 +1,7 @@
+config FS_APPS_VALGRIND
+        bool "valgrind"
+        default n
+        help
+	Valgrind is a system profiler. This is a SVN revision 
+	with support for ARMv7 (check RidgeRun Developer Site)
+	for more information.

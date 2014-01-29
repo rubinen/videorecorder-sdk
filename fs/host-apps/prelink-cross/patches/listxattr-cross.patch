@@ -1,0 +1,61 @@
+Index: prelink-cross/src/trunk/src/dso.c
+===================================================================
+--- prelink-cross.orig/src/trunk/src/dso.c	2011-03-28 17:07:49.866986891 -0600
++++ prelink-cross/src/trunk/src/dso.c	2011-03-28 17:09:39.866788401 -0600
+@@ -1730,7 +1730,7 @@
+ static int
+ copy_xattrs (const char *temp_name, const char *name, int ignore_errors)
+ {
+-  ssize_t sz = listxattr (name, NULL, 0), valsz = 0;
++  ssize_t sz = wrap_listxattr (name, NULL, 0), valsz = 0;
+   char *list = NULL, *end, *p, *val = NULL, *newval;
+ 
+   if (sz < 0)
+@@ -1742,7 +1742,7 @@
+   list = malloc (sz + 1);
+   if (list == NULL)
+     goto read_err;
+-  sz = listxattr (name, list, sz);
++  sz = wrap_listxattr (name, list, sz);
+   if (sz < 0)
+     goto read_err;
+   end = list + sz;
+Index: prelink-cross/src/trunk/src/prelink.h
+===================================================================
+--- prelink-cross.orig/src/trunk/src/prelink.h	2011-03-28 17:07:49.858773608 -0600
++++ prelink-cross/src/trunk/src/prelink.h	2011-03-28 17:07:52.663524617 -0600
+@@ -584,6 +584,7 @@
+ int wrap_lstat64 (const char *file, struct stat64 *buf);
+ int wrap_stat64 (const char *file, struct stat64 *buf);
+ int wrap_open (const char *file, int mode, ...);
++int wrap_listxattr (const char *name, char *list, int size);
+ int wrap_access (const char *file, int mode);
+ int wrap_rename (const char *old, const char *new);
+ int wrap_link (const char *old, const char *new);
+Index: prelink-cross/src/trunk/src/wrap-file.c
+===================================================================
+--- prelink-cross.orig/src/trunk/src/wrap-file.c	2011-03-28 17:07:49.878395253 -0600
++++ prelink-cross/src/trunk/src/wrap-file.c	2011-03-28 17:07:52.663524617 -0600
+@@ -190,6 +190,22 @@
+ }
+ 
+ int
++wrap_listxattr (const char *name, char * list, int size)
++{
++  char *tmpname = sysroot_file_name (name, 0);
++  int ret;
++
++  if (tmpname == NULL)
++    return -1;
++
++  ret = listxattr (tmpname, list, size);
++
++  if (tmpname != name)
++    free (tmpname);
++  return ret;
++}
++
++int
+ wrap_link (const char *old, const char *new)
+ {
+   char *tmpold = sysroot_file_name (old, 1);

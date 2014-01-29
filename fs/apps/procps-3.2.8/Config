@@ -1,0 +1,6 @@
+config FS_APPS_PROCPS
+        bool "procps-3.2.8"
+        default n
+        help
+         Many tools that queries the proc filesystem, including vmstat
+

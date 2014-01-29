@@ -1,0 +1,13 @@
+Index: cups-1.5.4/src/conf/mime.convs.in
+===================================================================
+--- cups-1.5.4.orig/src/conf/mime.convs.in	2011-05-06 16:53:53.000000000 -0600
++++ cups-1.5.4/src/conf/mime.convs.in	2012-11-01 11:43:09.275545097 -0600
+@@ -38,7 +38,7 @@
+ # PostScript filters
+ #
+ 
+-@DEFAULT_PDFTOPS@application/pdf			application/vnd.cups-postscript	66	pdftops
++@DEFAULT_PDFTOPS@application/pdf			application/vnd.cups-raster	66	gstoraster
+ application/postscript		application/vnd.cups-postscript	66	pstops
+ @DEFAULT_TEXTTOPS@application/x-cshell		application/postscript		33	texttops
+ @DEFAULT_TEXTTOPS@application/x-csource		application/postscript		33	texttops

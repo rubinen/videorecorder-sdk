@@ -1,0 +1,6 @@
+config FS_APPS_LTTNG_TOOLS
+	bool "lttng-tools-2.0.0"
+	select FS_APPS_POPT
+	select FS_APPS_LTTNG_UST
+	help
+	    Lttng tools for toolchain 2.0

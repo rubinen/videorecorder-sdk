@@ -1,0 +1,6 @@
+config FS_APPS_LIBELF
+        bool "libelf-0.8.13"
+        default n
+        help
+         Library for accesing and using ELF files. 
+

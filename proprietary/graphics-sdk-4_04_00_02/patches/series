@@ -1,0 +1,3 @@
+fix-install-modules.patch
+add-install-support-from-host.patch
+avoid-conflicts-with-toolchain.patch
