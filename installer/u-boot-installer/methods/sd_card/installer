@@ -341,13 +341,20 @@ sub install_installer {
     cmd_echo("sudo cp $IMAGEDIR/installer/* $IMAGEDIR/boot");
 }
 
-# ==============================================================================
-# Kernel download
-# ==============================================================================
+# ========================== #
+# install_kernel             #
+# ========================== #
 sub install_kernel {
-    print BOLD BLUE "  Flashing Kernel image to SD...\n";
-    print "    Copying the kernel into the SD...\n";
-    cmd_echo("sudo cp $IMAGEDIR/kernel.uImage $IMAGEDIR/boot/uImage");
+	if ( $TFTP_KERNEL eq 'y' ) {	# Boot via tftp
+		print BOLD BLUE "  Flashing Kernel image...\n";
+		print "    Copying the Kernel into the TFTP server path...\n";
+		cmd_echo("sudo cp $IMAGEDIR/kernel.uImage $TFTPDIR/$TFTP_KERNEL_IMAGE");
+	}
+	else {
+		print BOLD BLUE "  Flashing Kernel image to SD...\n";
+		print "    Copying the kernel into the SD...\n";
+		cmd_echo("sudo cp $IMAGEDIR/kernel.uImage $IMAGEDIR/boot/uImage");
+	}
 }
 
 # ==============================================================================
@@ -379,6 +386,23 @@ sub install_filesystem {
     }
 }
 
+# ================================ #
+# Set method for getting boards ip #
+# ================================ #
+sub set_ip_method() {
+	if ( $CONFIG_INSTALLER_DHCP eq "y"  ) { # DHCP
+		$IP_METHOD = 
+			"setenv autoload no;dhcp";
+	}
+	else { # Static
+		$IP_METHOD =
+			"setenv ipaddr ";
+	}
+}
+
+# ========================== #
+# install_ubootEnv           #
+# ========================== #
 sub install_ubootEnv {
     print BOLD BLUE "  Flashing boot script to SD...\n";
     open (ARGS, "<$IMAGEDIR/cmdline");
@@ -386,7 +410,16 @@ sub install_ubootEnv {
     close(ARGS);
     open (CMD, ">$IMAGEDIR/uEnv.txt");
     print CMD "bootargs=$BOOTARGS\n";
-    print CMD "uenvcmd=echo Running uenvcmd ...; run loaduimage;bootm $CONFIG_INSTALLER_LOAD_ADDRS\n";
+    if ( $TFTP_KERNEL eq 'y' ) { # Boot via TFTP
+		# Set boards iup method
+		set_ip_method();
+			print CMD
+		"uenvcmd=echo Running uenvcmd ...; $IP_METHOD;setenv serverip $HOST_IP; setenv loadaddr $CONFIG_INSTALLER_LOAD_ADDRS;tftp $TFTP_KERNEL_IMAGE; bootm\n";
+	}
+	else {
+			print CMD
+		"uenvcmd=echo Running uenvcmd ...; run loaduimage;bootm $CONFIG_INSTALLER_LOAD_ADDRS\n";
+	}
     close(CMD);
     system("mkdir -p $LOG_DIRECTORY");
     print "    Flashing uEnv.txt to SD boot partition\n";

@@ -1,8 +1,9 @@
-if INSTALLER_MODE_ATTACHED_BOARD || INSTALLER_MODE_SD_CARD_INSTALLER
+if INSTALLER_MODE_ATTACHED_BOARD || INSTALLER_MODE_SD_CARD_INSTALLER || INSTALLER_MODE_TFTP_KERNEL
 comment "Installer to U-boot communication options"
 
 choice
     prompt "Communication method with the target board"
+    depends on INSTALLER_MODE_ATTACHED_BOARD
 
 config INSTALLER_SERIAL_COM
 	bool "Serial port"
@@ -27,6 +28,7 @@ config INSTALLER_SERIAL_COM_PORT
 
 if !INSTALLER_MODE_SD_CARD_INSTALLER
 comment "Transfer options for installation"
+depends on INSTALLER_MODE_ATTACHED_BOARD
 choice 
     prompt "Protocol for transfering images to the target"
 
@@ -45,10 +47,10 @@ endchoice
 
 config INSTALLER_TFTP_SERVER_DIRECTORY
 	string "TFTP server path"
-	depends on INSTALLER_TFTP_METHOD
+	depends on INSTALLER_TFTP_METHOD || INSTALLER_MODE_TFTP_KERNEL
 	default "/srv/tftp"
 
-if INSTALLER_TFTP_METHOD
+if INSTALLER_TFTP_METHOD || INSTALLER_MODE_TFTP_KERNEL
 comment "Network options for installation"
 
 choice 

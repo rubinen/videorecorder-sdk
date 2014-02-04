@@ -12,9 +12,13 @@ our $UBLIMAGE = "$DEVDIR/images/ubl.nandbin";
 our $UBOOTIMAGE = "$DEVDIR/images/bootloader.nandbin";
 our $UBOOTIMAGE_UPGRADE = "$DEVDIR/images/upgrade_bootloader.bin";
 our $KERNELIMAGE = "$DEVDIR/images/kernel.uImage";
+our $TFTP_KERNEL_IMAGE  = "uImage${TFTPIMGSUFFIX}"; 
+our $TFTP_KERNEL 		= $CONFIG_INSTALLER_MODE_TFTP_KERNEL;
+our $TFTPDIR   			= $CONFIG_INSTALLER_TFTP_SERVER_DIRECTORY;
+our $HOST_IP        	= $ENV{'HOST_IP'};
 our $FSIMAGE = "$DEVDIR/images/fsimage.uImage";
 our $ENABLE_DEBUG = $ENV{'VERBOSE'} || 0;
-our $TARGET_FS_TYPE="noinstall";
+our $TARGET_FS_TYPE		= "noinstall";
 
 # Configure FS type
 if ($CONFIG_FS_TARGET_NFSROOT eq "y") {

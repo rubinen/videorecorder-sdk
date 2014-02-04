@@ -27,6 +27,15 @@ config INSTALLER_MODE_SD_CARD_INSTALLER
 	    On this deployment mode the SD card will have an
 	    installer capable of programming flash memory
 
+# Load Kernel via TFTP Options
+
+config INSTALLER_MODE_TFTP_KERNEL
+	bool "Start kernel via TFTP"
+	default n
+	help
+	    With this mode the kernel image is going to be loaded to RAM 
+	    from a TFTP server instead of an SD card or on board memory every
+	    time the board starts
 
 endchoice
 
