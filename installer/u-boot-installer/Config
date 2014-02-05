@@ -51,7 +51,7 @@ config INSTALLER_LOAD_ADDRS
 config INSTALLER_HOST_NET_INTERFACE
     string "Interface on your host machine connected to your target hardware"
     default "eth0"
-    depends on INSTALLER_MODE_ATTACHED_BOARD || (INSTALLER_MODE_SD_CARD && FS_TARGET_NFSROOT)
+    depends on INSTALLER_MODE_ATTACHED_BOARD || (INSTALLER_MODE_SD_CARD && FS_TARGET_NFSROOT) || INSTALLER_MODE_TFTP_KERNEL
     help
      If you are going to deploy over tftp or use NFS root mount, you need to
      specify which network interface in your host machine faces the target
