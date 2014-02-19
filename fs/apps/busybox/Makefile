@@ -45,10 +45,7 @@ src/libbb/Config.in: rrpatched
 	$(V)$(MAKE) -C src gen_build_files $(if $(VERBOSE:0=),V=1) $(QOUT) $(ERRQOUT)
 
 install:
-	$(V)$(MAKE) -C src install $(if $(VERBOSE:0=),V=1) $(QOUT)
-ifneq ($(CONFIG_PREFIX),"../../../fs")
-	$(V)cp -RPp src/$(CONFIG_PREFIX)/* $(FSROOT)
-endif
+	$(V)$(MAKE) -C src CONFIG_PREFIX=$(FSROOT) install $(if $(VERBOSE:0=),V=1) $(QOUT)
 #	if lsusb was selected, copy over the helper file
 	$(V)if [ -r  $(FSDEVROOT)/usr/share/usb.ids ] ; then \
 	    cp $(FSDEVROOT)/usr/share/usb.ids $(FSROOT)/usr/share/usb.ids ; \

@@ -1,0 +1,17 @@
+Index: busybox/src/Config.in
+===================================================================
+--- busybox.orig/src/Config.in	2014-02-19 16:11:23.657642241 -0600
++++ busybox/src/Config.in	2014-02-19 16:12:17.841641932 -0600
+@@ -771,12 +771,6 @@
+ 
+ endchoice
+ 
+-config PREFIX
+-	string "BusyBox installation prefix"
+-	default "./_install"
+-	help
+-	  Define your directory to install BusyBox files/subdirs in.
+-
+ endmenu
+ 
+ source libbb/Config.in
