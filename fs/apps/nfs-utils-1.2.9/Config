@@ -1,0 +1,7 @@
+config FS_APPS_NFS_UTILS
+	bool "nfs-utils-1.2.9"
+	select FS_APPS_RPCBIND
+	default n
+	help
+	  The NFS Utilities package contains the userspace server and client tools 
+	  necessary to use the kernel's NFS abilities.

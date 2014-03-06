@@ -1,0 +1,7 @@
+config FS_APPS_RPCBIND
+	bool "rpcbind-0.2.1"
+	select FS_APPS_LIBTIRPC
+	default n
+	help
+	  The rpcbind program is a replacement for portmap. It is required 
+	  for import or export of Network File System (NFS) shared directories

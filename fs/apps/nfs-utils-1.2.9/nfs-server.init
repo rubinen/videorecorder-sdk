@@ -1,0 +1,58 @@
+#!/bin/sh
+
+case "$1" in
+   start)
+      echo "Starting NFS statd..."
+      /usr/sbin/rpc.statd
+
+      echo "Starting NFS nfsd..."
+      /usr/sbin/rpc.nfsd -p 2049 1
+
+      echo "Starting NFS mountd..."
+      /usr/sbin/rpc.mountd
+
+      # Make certain that the list is refreshed on a restart.
+      echo "Exporting NFS Filesystems..."
+      /usr/sbin/exportfs -ra 2>&1 > /dev/null
+      ;;
+
+   stop)
+      echo "Removing NFS Exported Filesystems..."
+      /usr/sbin/exportfs -au 2>&1 > /dev/null
+
+      echo "Unmounting NFS Virtual Filesystem..."
+      /bin/umount /proc/fs/nfsd 2>&1 > /dev/null
+
+      echo "Stopping NFS statd..."
+      killall rpc.statd
+
+      echo "Stopping NFS nfsd..."
+      # nfsd needs HUP.  Can't use killproc for kernel process.
+      killall -HUP nfsd 
+
+      echo "Stopping NFS mountd..."
+      killall rpc.mountd
+
+      # Remove a pid file that isn't done automatically
+      if [ -f /var/run/rpc.statd.pid ]; then
+          echo "Removing the rpc.statd pid file if it exists"
+          rm -f /var/run/rpc.statd.pid
+      fi
+      ;;
+
+   reload)
+      echo "Reloading NFS Server..."
+      /usr/sbin/exportfs -ra
+      ;;
+
+   restart)
+      $0 stop
+      sleep 1
+      $0 start
+      ;;
+
+   *)
+      echo "Usage: $0 {start|stop|reload|restart}"
+      exit 1
+      ;;
+esac

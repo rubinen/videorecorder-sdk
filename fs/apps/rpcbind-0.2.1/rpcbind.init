@@ -1,0 +1,28 @@
+#!/bin/sh
+
+case "$1" in
+   start)
+      echo "Starting rpcbind"
+      usr/bin/rpcbind
+      ;;
+
+   stop)
+      echo "Stopping rpcbind"
+      killall rpcbind
+      ;;
+
+   restart)
+      $0 stop
+      sleep 1
+      $0 start
+      ;;
+
+   *)
+      echo "Usage: $0 {start|stop|restart}"
+      exit 1
+      ;;
+
+esac
+
+# End /etc/init.d/rpcbind
+

@@ -1,0 +1,6 @@
+config FS_APPS_LIBTIRPC
+	bool "libtirpc-0.2.4"
+	default n
+	help
+	 The libtirpc package contains libraries that support programs that use 
+	 the Remote Procedure Call (RPC) API.
