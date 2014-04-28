@@ -64,7 +64,7 @@ RULES_MAKE?=$(FETCHER_EXTRACT_DIRECTORY_NAME)/Rules.make
 -include $(RULES_MAKE)
 
 # Variables that control EZSDK search
-EZSDK_SEARCH_PATH?=$(HOME)/$(EZSDK_NAME) /usr/$(EZSDK_NAME) /usr/local/$(EZSDK_NAME) /usr/local/ezsdk
+EZSDK_SEARCH_PATH?=$(HOME)/$(EZSDK_NAME) /usr/$(EZSDK_NAME) /usr/local/$(EZSDK_NAME) /usr/local/ezsdk /work/$(EZSDK_NAME)
 EZSDK_VERIFICATION_FILE?=Rules.make
 
 # This variable is usually overwriten by the ezsdk class file with the respective values for the EZSDK version
