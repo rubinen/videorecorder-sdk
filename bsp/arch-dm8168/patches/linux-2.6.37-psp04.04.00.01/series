@@ -1,5 +1,7 @@
 fix_int-ll64_path.patch
 quiet-hdmi-driver.patch
+0001-char-ti81xx-Add-EDMA-driver-to-provide-minimal-acces.patch
+0002-char-ti81xx-Add-driver-for-controlling-TI81XX-EP-fro.patch
 0002-mmc-skip-detection-of-nonremovable-cards-on-rescan.patch
 0003-mmc-sdio-don-t-reinitialize-nonremovable-powered-res.patch
 0004-mmc-sdio-don-t-power-up-cards-on-system-suspend.patch

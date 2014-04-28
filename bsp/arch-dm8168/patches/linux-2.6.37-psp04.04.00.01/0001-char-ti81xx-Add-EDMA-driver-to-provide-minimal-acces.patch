@@ -1,0 +1,689 @@
+From 1c00ac3a45033d9c931908cc6a9df7a119a06991 Mon Sep 17 00:00:00 2001
+From: Sumit Kumar <sumit.kumar@ti.com>
+Date: Thu, 20 Oct 2011 08:05:59 +0530
+Subject: [PATCH 1/2] char: ti81xx: Add EDMA driver to provide minimal access to usespace
+
+This patch adds EDMA driver with character device interface to enable initiating
+EDMA transfers from userspase through ioctls.
+
+Important Notes:
+	1) This is a sample test driver only and needs to be applied as a patch
+	to kernel.
+	2) The Makefile in drivers/char is updated to build this driver always
+	as module (no kernel config).
+
+Signed-off-by: Hemant Pedanekar <hemantp@ti.com>
+---
+ drivers/char/Makefile      |    2 +
+ drivers/char/ti81xx_edma.c |  555 ++++++++++++++++++++++++++++++++++++++++++++
+ drivers/char/ti81xx_edma.h |   86 +++++++
+ 3 files changed, 643 insertions(+), 0 deletions(-)
+ create mode 100644 drivers/char/ti81xx_edma.c
+ create mode 100644 drivers/char/ti81xx_edma.h
+
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/char/Makefile b/linux-2.6.37-psp04.04.00.01/drivers/char/Makefile
+index ab8292c..797d496 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/char/Makefile
++++ b/linux-2.6.37-psp04.04.00.01/drivers/char/Makefile
+@@ -101,3 +101,5 @@ js-rtc-y = rtc.o
+ 
+ obj-$(CONFIG_TI81XX_PCIE_BOOTDRV) += ti81xx_pcie_bootdrv.o
+ obj-$(CONFIG_TI81XX_PCIE_EPDRV) += ti81xx_pcie_epdrv.o
++
++obj-m				+= ti81xx_edma.o
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/char/ti81xx_edma.c b/linux-2.6.37-psp04.04.00.01/drivers/char/ti81xx_edma.c
+new file mode 100644
+index 0000000..257e14e
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/char/ti81xx_edma.c
+@@ -0,0 +1,555 @@
++/*
++ * TI816X/TI814X PCIe Endpoint (EP) edma kernel module to provide EDMA interface
++ * to user space.
++ *
++ * Note: References common across TI816X and TI814X devices are fererred as
++ * TI81XX/ti81xx.
++ *
++ * Copyright (C) 2010 Texas Instruments, Incorporated
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/mm.h>
++#include <linux/dma-mapping.h>
++#include <mach/io.h>
++#include <mach/irqs.h>
++#include <mach/hardware.h>
++#include <mach/memory.h>
++#include <linux/cdev.h>
++#include <linux/types.h>
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/slab.h>
++#include <linux/fs.h>
++#include <linux/fcntl.h>
++#include <linux/uaccess.h>
++#include <linux/ioport.h>
++#include <linux/ioport.h>
++#include <linux/jiffies.h>
++#include <linux/sched.h>
++#include <linux/wait.h>
++#include <asm/hardware/edma.h>
++#include "ti81xx_edma.h"
++
++#define MAX_DMA_TRANSFER_IN_BYTES   (32768)
++#define STATIC_SHIFT                3
++#define TCINTEN_SHIFT               20
++#define ITCINTEN_SHIFT              21
++#define TCCHEN_SHIFT                22
++#define ITCCHEN_SHIFT               23
++
++
++#define DEV_MINOR			0
++#define DEVICENO			1
++#define DRIVER_NAME			"ti81xx_edma_ep"
++#define TI81XX_DMA_MODFILE		"ti81xx_edma_ep"
++
++/*direction of DMA */
++
++#define EP_OUT				0
++#define EP_IN				1
++
++
++dev_t ti81xx_ep_dma_dev;
++
++/****************************************************************************
++ *	FILE GLOBALS
++ */
++
++
++static int irqraised1;
++static int irqraised2;
++
++static int acnt = (32 * 1024);
++static int bcnt = 1;
++static int ccnt = 1;
++static int mode = ABSYNC;
++static struct cdev ti81xx_ep_dma_cdev;
++static struct class *ti81xx_dma_class;
++
++/*source buffer on local EP for DMA write to some Remote peer*/
++dma_addr_t dmaphyssrcep;
++dma_addr_t dmaphyssrcrm;
++/*dest buffer on local EP for DMA read from Remote peer*/
++dma_addr_t dmaphysdestep;
++dma_addr_t dmaphysdestrm;
++
++char *dmabufsrcep;
++char *dmabufsrcrm;
++char *dmabufdestep;
++char *dmabufdestrm;
++
++wait_queue_head_t read_queue;
++wait_queue_head_t write_queue;
++
++
++/*****************************************************************************
++ *	FUNCTION DECLARATIONS
++ */
++
++static int ti81xx_edma_dma_tx(int acnt, int bcnt, int ccnt,
++					int sync_mode, int event_queue);
++
++static int ti81xx_edma_dma_rx(int acnt, int bcnt, int ccnt,
++					int sync_mode, int event_queue);
++static void callback1(unsigned channel, u16 ch_status, void *data);
++static void callback2(unsigned channel, u16 ch_status, void *data);
++static long ti81xx_ep_dma_ioctl(struct file *file,
++					unsigned int cmd, unsigned long arg);
++
++
++/*****************************************************************************
++ *	FUNCTION DEFINITIONS
++ */
++
++static void callback1(unsigned channel, u16 ch_status, void *data)
++{
++	switch (ch_status) {
++	case DMA_COMPLETE:
++		irqraised1 = 1;
++		wake_up_interruptible(&write_queue);
++		pr_debug(DRIVER_NAME
++				":  From Callback : Channel %d status is: %u",
++				channel, ch_status);
++		break;
++	case DMA_CC_ERROR:
++		irqraised1 = -1;
++		pr_debug(DRIVER_NAME ":  From Callback : DMA_EVT_MISS_ERROR "
++				" occured on Channel %d", channel);
++		break;
++	default:
++		break;
++	}
++}
++
++static void callback2(unsigned channel, u16 ch_status, void *data)
++{
++	switch (ch_status) {
++	case DMA_COMPLETE:
++		irqraised2 = 1;
++		wake_up_interruptible(&read_queue);
++		pr_debug(DRIVER_NAME
++				":  From Callback : Channel %d status is: %u",
++				channel, ch_status);
++		break;
++	case DMA_CC_ERROR:
++		irqraised2 = -1;
++		pr_debug(DRIVER_NAME ":  From Callback : DMA_EVT_MISS_ERROR "
++				"occured on Channel %d", channel);
++		break;
++	default:
++		break;
++	}
++}
++
++/**
++ * ti81xx_ep_dma_ioctl() - interface for application to initiate DMA
++ *
++ * Provides interface to the application code to start DMA read/write.
++ * DMA specific info is passed by user space.
++ *
++ * on success it returns no of bytes DMAed.
++ *
++ * TODO: Do copy to/from user space for data passed.
++ */
++static long ti81xx_ep_dma_ioctl(struct file *file,
++		unsigned int cmd, unsigned long arg)
++{
++
++	switch (cmd) {
++	case TI81XX_EDMA_WRITE:
++	{
++		struct dma_info *dma = (struct dma_info *) arg;
++		int result = -1;
++		u32 bytes_transfered = (acnt * bcnt * ccnt);
++		memcpy(dmabufsrcep, dma->user_buf, bytes_transfered);
++		dmaphysdestrm = (dma_addr_t)dma->dest;
++		result = ti81xx_edma_dma_tx(acnt, bcnt, ccnt, mode, 0);
++
++		if (0 == result)
++			return  bytes_transfered;
++
++		return result;
++	}
++
++	break;
++
++	case TI81XX_EDMA_WRITEM:
++	{
++		struct dma_info *dma = (struct dma_info *) arg;
++		int result = -1;
++		u32 bytes_transfered = (acnt * bcnt * ccnt);
++		dmaphysdestrm = (dma_addr_t)dma->dest;
++		result = ti81xx_edma_dma_tx(acnt, bcnt, ccnt, mode, 0);
++
++		if (0 == result)
++			return  bytes_transfered;
++
++		return result;
++	}
++	break;
++
++	case TI81XX_EDMA_READ:
++	{
++		struct dma_info *dma = (struct dma_info *) arg;
++		int result = -1;
++		u32 bytes_transfered = (acnt * bcnt * ccnt);
++		dmaphyssrcrm = (dma_addr_t)dma->src;
++		result = ti81xx_edma_dma_rx(acnt, bcnt, ccnt, mode, 0);
++		if (0 == result) {
++			memcpy(dma->user_buf, dmabufdestep, bytes_transfered);
++			return  bytes_transfered;
++		}
++		return result;
++	}
++
++	break;
++
++	case TI81XX_EDMA_READM:
++	{
++		struct dma_info *dma = (struct dma_info *) arg;
++		int result = -1;
++		u32 bytes_transfered = (acnt * bcnt * ccnt);
++		dmaphyssrcrm = (dma_addr_t)dma->src;
++		result = ti81xx_edma_dma_rx(acnt, bcnt, ccnt, mode, 0);
++		if (0 == result)
++			return  bytes_transfered;
++
++		return result;
++	}
++
++	break;
++
++
++	case TI81XX_EDMA_SET_CNT:
++	{
++		struct dma_cnt_conf *cnt = (struct dma_cnt_conf *)arg;
++		acnt = cnt->acnt;
++		bcnt = cnt->bcnt;
++		ccnt = cnt->ccnt;
++		mode = cnt->mode;
++		return 0;
++	}
++
++	break;
++
++	case TI81XX_EDMA_SET_BUF_INFO:
++	{
++		struct dma_buf_info *buf = (struct dma_buf_info *)arg;
++		dmaphyssrcep = buf->send_buf;
++		dmaphysdestep = buf->recv_buf;
++
++		dmabufsrcep = (char *) ioremap_nocache(dmaphyssrcep, buf->size);
++		if (!dmabufsrcep) {
++			pr_err(DRIVER_NAME
++				": ioremap failed for EDMA transmit buffer\n");
++			return -1;
++		}
++
++		dmabufdestep = (char *)ioremap_nocache(dmaphysdestep,
++							buf->size);
++		if (!dmabufdestep) {
++			pr_err(DRIVER_NAME
++				": ioremap failed for EDMA recv buffer\n");
++			iounmap((void *) dmabufsrcep);
++			dmabufsrcep = NULL;
++			return -1;
++		}
++
++		return 0;
++	}
++	break;
++
++	default:
++	{
++		return -1;
++	}
++
++	}
++}
++
++static int ti81xx_ep_dma_mmap(struct file *filp, struct vm_area_struct *vma)
++{
++	int ret = -EINVAL;
++	unsigned long sz = vma->vm_end - vma->vm_start;
++	unsigned int addr = (unsigned int)vma->vm_pgoff << PAGE_SHIFT;
++	pr_debug(DRIVER_NAME ":Mapping %#lx bytes from address %#x\n",
++			sz, addr);
++	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
++	ret = remap_pfn_range(vma, vma->vm_start,
++					vma->vm_pgoff,
++						sz, vma->vm_page_prot);
++	return ret;
++}
++
++/**
++ * ti81xx_ep_dma_fops - declares supported file access functions
++ */
++
++static const struct file_operations ti81xx_ep_dma_fops = {
++	.owner          = THIS_MODULE,
++	.unlocked_ioctl = ti81xx_ep_dma_ioctl,
++	.mmap           = ti81xx_ep_dma_mmap,
++};
++
++/*
++ * init part of the module
++ */
++
++static int __init edma_init(void)
++{
++	int ret = 0;
++
++	ret = alloc_chrdev_region(&ti81xx_ep_dma_dev, DEV_MINOR, DEVICENO,
++							TI81XX_DMA_MODFILE);
++	if (ret < 0) {
++
++		pr_err(DRIVER_NAME ": could not allocate the character driver");
++		return -1;
++	}
++
++	cdev_init(&ti81xx_ep_dma_cdev, &ti81xx_ep_dma_fops);
++	ret = cdev_add(&ti81xx_ep_dma_cdev, ti81xx_ep_dma_dev, DEVICENO);
++	if (ret < 0) {
++		pr_err(DRIVER_NAME ": cdev add failed");
++		unregister_chrdev_region(ti81xx_ep_dma_dev, DEVICENO);
++		return -1;
++	}
++
++	ti81xx_dma_class = class_create(THIS_MODULE, TI81XX_DMA_MODFILE);
++	if (!ti81xx_dma_class) {
++		pr_err(DRIVER_NAME ":failed to add device to sys fs");
++		goto ERROR;
++	}
++
++	device_create(ti81xx_dma_class, NULL, ti81xx_ep_dma_dev, NULL,
++							TI81XX_DMA_MODFILE);
++
++	init_waitqueue_head(&read_queue);
++	init_waitqueue_head(&write_queue);
++
++	return 0;
++ERROR:
++	iounmap((void *) dmabufsrcep);
++	iounmap((void *) dmabufdestep);
++	cdev_del(&ti81xx_ep_dma_cdev);
++	unregister_chrdev_region(ti81xx_ep_dma_dev, DEVICENO);
++
++	return -1;
++}
++
++/*
++ * exit part of the module
++ */
++
++void edma_exit(void)
++{
++
++	device_destroy(ti81xx_dma_class, ti81xx_ep_dma_dev);
++	class_destroy(ti81xx_dma_class);
++	iounmap((void *)dmabufdestep);
++	iounmap((void *)dmabufsrcep);
++	cdev_del(&ti81xx_ep_dma_cdev);
++	unregister_chrdev_region(ti81xx_ep_dma_dev, DEVICENO);
++
++	pr_info(DRIVER_NAME ": Exiting TI81XX EDMA3 Module\n");
++}
++
++
++/* DMA TX */
++
++int ti81xx_edma_dma_tx(int acnt, int bcnt, int ccnt, int sync_mode,
++							int event_queue)
++{
++	int result = 0;
++	unsigned int dma_ch = 0;
++	int i;
++
++	unsigned int numenabled = 0;
++	unsigned int BRCnt = 0;
++	int srcbidx = 0;
++	int desbidx = 0;
++	int srccidx = 0;
++	int descidx = 0;
++	struct edmacc_param param_set;
++
++	/* Set B count reload as B count. */
++	BRCnt = bcnt;
++
++	/* Setting up the SRC/DES Index */
++	srcbidx = acnt;
++	desbidx = acnt;
++
++	srccidx = acnt;
++	descidx = acnt;
++
++	dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback1,
++						NULL, EVENTQ_DEFAULT);
++	pr_debug(DRIVER_NAME ": dma_ch %d is allocated\n", dma_ch);
++
++	if (dma_ch < 0) {
++		pr_debug(DRIVER_NAME ": dma channel allocation failed");
++		return dma_ch;
++	}
++
++	edma_set_src(dma_ch, (unsigned long)(dmaphyssrcep), INCR, W8BIT);
++
++	edma_set_dest(dma_ch, (unsigned long)dmaphysdestrm, INCR, W8BIT);
++
++	edma_set_src_index(dma_ch, srcbidx, srccidx);
++
++	edma_set_dest_index(dma_ch, desbidx, descidx);
++
++	edma_set_transfer_params(dma_ch, acnt, bcnt, ccnt, BRCnt, sync_mode);
++
++	/* Enable the Interrupts on Channel 1 */
++	edma_read_slot(dma_ch, &param_set);
++	param_set.opt |= (1 << ITCINTEN_SHIFT);
++	param_set.opt |= (1 << TCINTEN_SHIFT);
++	param_set.opt |= EDMA_TCC(EDMA_CHAN_SLOT(dma_ch));
++	edma_write_slot(dma_ch, &param_set);
++	if (sync_mode == ASYNC)
++		numenabled = bcnt * ccnt;
++	else
++		numenabled = ccnt;
++
++	for (i = 0; i < numenabled; i++) {
++		irqraised1 = 0;
++
++		/* Now enable the transfer as many times as calculated above*/
++		result = edma_start(dma_ch);
++		if (result != 0) {
++			pr_err(DRIVER_NAME ": edma_start failed");
++			break;
++		}
++
++		/* Wait for the Completion ISR. */
++		wait_event_interruptible(write_queue, irqraised1 == 1);
++
++		/* Check the status of the completed transfer */
++		if (irqraised1 < 0) {
++			/* Some error occured, break from the FOR loop. */
++			pr_err(DRIVER_NAME ": Event Miss Occured!!!\n");
++			break;
++		}
++	}
++
++	if (0 == result) {
++		edma_stop(dma_ch);
++		edma_clean_channel(dma_ch);
++		edma_free_slot(dma_ch);
++		edma_free_channel(dma_ch);
++		pr_debug(DRIVER_NAME ": channel cleanup done");
++	}
++
++	pr_debug(DRIVER_NAME ": TI81XX EDMA TX transfer complete\n");
++
++	return result;
++}
++
++
++int ti81xx_edma_dma_rx(int acnt, int bcnt, int ccnt, int sync_mode,
++							int event_queue)
++{
++	int result = 0;
++	unsigned int dma_ch = 0;
++	int i;
++
++	unsigned int numenabled = 0;
++	unsigned int BRCnt = 0;
++	int srcbidx = 0;
++	int desbidx = 0;
++	int srccidx = 0;
++	int descidx = 0;
++	struct edmacc_param param_set;
++
++	/* Set B count reload as B count. */
++	BRCnt = bcnt;
++
++	/* Setting up the SRC/DES Index */
++	srcbidx = acnt;
++	desbidx = acnt;
++
++	srccidx = acnt;
++	descidx = acnt;
++
++	dma_ch = edma_alloc_channel(EDMA_CHANNEL_ANY, callback2,
++							NULL, EVENTQ_DEFAULT);
++	pr_debug(DRIVER_NAME ": dma_ch %d is allocated\n", dma_ch);
++	if (dma_ch < 0) {
++		pr_debug(DRIVER_NAME ": dma channel allocation failed");
++		pr_err("rx channel fail\n");
++		return dma_ch;
++	}
++
++	edma_set_src(dma_ch, (unsigned long)dmaphyssrcrm, INCR, W8BIT);
++
++	edma_set_dest(dma_ch, (unsigned long)(dmaphysdestep), INCR, W8BIT);
++
++	edma_set_src_index(dma_ch, srcbidx, srccidx);
++
++	edma_set_dest_index(dma_ch, desbidx, descidx);
++
++	edma_set_transfer_params(dma_ch, acnt, bcnt, ccnt, BRCnt, sync_mode);
++
++	/* Enable the Interrupts on Channel 1 */
++	edma_read_slot(dma_ch, &param_set);
++	param_set.opt |= (1 << ITCINTEN_SHIFT);
++	param_set.opt |= (1 << TCINTEN_SHIFT);
++	param_set.opt |= EDMA_TCC(EDMA_CHAN_SLOT(dma_ch));
++	edma_write_slot(dma_ch, &param_set);
++	if (sync_mode == ASYNC)
++		numenabled = bcnt * ccnt;
++	else
++		numenabled = ccnt;
++
++	for (i = 0; i < numenabled; i++) {
++		irqraised2 = 0;
++
++		/* Now enable the transfer as many times as calculated above*/
++		result = edma_start(dma_ch);
++		if (result != 0) {
++			pr_err(DRIVER_NAME ": edma_start failed");
++			break;
++		}
++
++		/* Wait for the Completion ISR. */
++
++		wait_event_interruptible(read_queue, irqraised2 == 1);
++
++		/* Check the status of the completed transfer */
++		if (irqraised2 < 0) {
++			/* Some error occured, break from the FOR loop. */
++			pr_err(DRIVER_NAME ": Event Miss Occured!!!\n");
++			break;
++		}
++	}
++
++	if (0 == result) {
++		edma_stop(dma_ch);
++		edma_clean_channel(dma_ch);
++		edma_free_slot(dma_ch);
++		edma_free_channel(dma_ch);
++		pr_debug(DRIVER_NAME ": channel cleanup done");
++	}
++
++	pr_debug(DRIVER_NAME ": TI81XX EDMA RX transfer complete\n");
++
++	return result;
++}
++
++module_init(edma_init);
++module_exit(edma_exit);
++
++MODULE_AUTHOR("Texas Instruments");
++MODULE_LICENSE("GPL");
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/char/ti81xx_edma.h b/linux-2.6.37-psp04.04.00.01/drivers/char/ti81xx_edma.h
+new file mode 100644
+index 0000000..3301519
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/char/ti81xx_edma.h
+@@ -0,0 +1,86 @@
++/**
++ * This file contains basic ioctls to user space and data structures used.
++ *
++ * Copyright (C) 2011, Texas Instruments, Incorporated
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++
++#ifndef __EP_EDMA__
++#define __EP_EDMA__
++
++#undef u8
++#undef u32
++
++#define u8 unsigned char
++#define u32 unsigned int
++
++/*
++ * TODO: Use correct types for ioctls
++ */
++
++/* ioctls defined for driver as well as user space */
++
++#define TI81XX_EDMA_WRITE                      _IOWR('P', 1, unsigned int)
++#define TI81XX_EDMA_READ                       _IOWR('P', 2, unsigned int)
++#define TI81XX_EDMA_WRITEM		       _IOWR('P', 3, unsigned int)
++#define TI81XX_EDMA_READM		       _IOWR('P', 4, unsigned int)
++#define TI81XX_EDMA_SET_CNT			_IOWR('P', 5, unsigned int)
++#define TI81XX_EDMA_SET_BUF_INFO		_IOWR('P', 6, unsigned int)
++
++/**
++ * dma_info -  EDMA related configuration data
++ * @size: size of data to be transfered
++ * @user_buf: pointer to user space buffer
++ * @dset: destination address for DMA
++ * @src: source address for DMA
++ * @dir: direction of DMA ( IF DMA to some peer, src
++ *					will be NULL if DMA from
++ *						some peer, dest will be NULL)
++ */
++
++struct dma_info {
++	u32 size;
++	u8  *user_buf;
++	u32 *dest;
++	u32 *src;
++	u32 dir;
++};
++
++/**
++ * dma_cnt_inf- configuration of edma.
++ */
++
++struct dma_cnt_conf {
++	int acnt;
++	int bcnt;
++	int ccnt;
++	int mode;
++};
++
++/**
++ * dma_buf_info- buffer related info
++ */
++
++struct dma_buf_info {
++	u32 send_buf;
++	u32 recv_buf;
++	u32 size;
++};
++
++/**
++ * start and end address of memory used for edma buffers
++ */
++
++extern u32 ti81xx_edma_mem_start;
++extern u32 ti81xx_edma_mem_size;
++
++#endif
+-- 
+1.7.0.4
+
