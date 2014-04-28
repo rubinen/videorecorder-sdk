@@ -32,6 +32,13 @@ ifeq ($(CONFIG_UBOOT_NOR_FLASH_MEMORY),y)
 CPPFLAGS+= -DCONFIG_SYS_USE_NOR -DCONFIG_SYS_FLASH_SECT_SZ=$(CONFIG_UBOOT_FLASH_BLK_SIZE) -DPHYS_FLASH_SIZE=$(CONFIG_UBOOT_FLASH_SIZE)
 endif
 
+ifneq ($(CONFIG_VIDEORECORDER_SERIAL_CONSOLE),)
+CPPFLAGS+= -DCONFIG_UART_NO=$(CONFIG_VIDEORECORDER_SERIAL_CONSOLE)
+else
+$(warning $(CONFIG_VIDEORECORDER_SERIAL_CONSOLE) is undefined)
+endif
+
+
 build: $(BOOTLOADER) rrpatched arch_build mach_build relflags uboot_built copy_images arch_post_build mach_post_build scripts
 
 relflags:

@@ -22,6 +22,7 @@ build:
 chkconfig:
 
 preconfig:
+	$(V)sed -i "s/ttyO./ttyO$(CONFIG_VIDEORECORDER_SERIAL_CONSOLE)/" etc/inittab
 
 buildfs:
 

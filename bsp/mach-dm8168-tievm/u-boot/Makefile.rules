@@ -22,7 +22,11 @@ ifeq ($(CONFIG_UBOOT_QUICK_BOOT),y)
   IPL_BOARD_CONFIG = ti8168_evm_config_quick_mmc_min
   UBOOT_BOARD_CONFIG = ti8168_evm_config_quick_mmc
 else
+ifeq ($(CONFIG_VIDEORECORDER_PCIE_ENDPOINT),y)
+  IPL_BOARD_CONFIG = ti8168_evm_min2_sd_pcie_ep
+else
   IPL_BOARD_CONFIG = ti8168_evm_min_sd
+endif
 endif
 endif
 

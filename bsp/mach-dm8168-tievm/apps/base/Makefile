@@ -36,7 +36,7 @@ include $(DEVDIR)/bsp/mach/Make.conf
 build:
 
 cmdline:
-	$(V)echo -n "console=ttyO2,115200n8 ">>$(CMDLINEFILE)
+	$(V)echo -n "console=ttyO$(CONFIG_VIDEORECORDER_SERIAL_CONSOLE),115200n8 ">>$(CMDLINEFILE)
 
 chkconfig:
 
