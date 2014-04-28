@@ -1,0 +1,34 @@
+###########################################
+## VIDEORECORDER CONFIGURATION
+##########################################
+
+config VIDEORECORDER
+	bool "Video Recorder & Multiplexer"
+	default y
+    help
+	    This option configures SDK for Video Recorder & Multiplexer
+
+choice
+	prompt "Choose Video Recorder Mode"
+	depends on VIDEORECORDER
+	default VIDEORECORDER_PCIE_ENDPOINT
+
+
+config VIDEORECORDER_PCIE_ENDPOINT
+	bool "Videorecorder works in PCIE endpoint mode (slave)"
+	select UBOOT_PCIE_ENDPOINT
+	help
+	  Say Y if you want your board to work in PCIE endpoint mode.
+
+config VIDEORECORDER_PCIE_ROOT_COMPLEX
+	bool "Videorecorder works as PCIE root complex (master)"
+	help
+	  Say Y if you want your board to work as PCIE root complex.
+endchoice
+
+config VIDEORECORDER_SERIAL_CONSOLE
+	int "Serial console used"
+	default 0 if VIDEORECORDER_PCIE_ROOT_COMPLEX
+	default 1 if VIDEORECORDER_PCIE_ENDPOINT
+	help
+	  Serial console used by device

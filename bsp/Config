@@ -178,6 +178,10 @@ endif # HAS_NET
 
 endmenu
 
+menu "Video Recorder & Multiplexer setup"
+source bsp/Config.VideoRecorder
+endmenu
+
 # Let's include the ARCH dependand parts (this one will include the mach config)
 source bsp/arch/Config
 
