@@ -1,0 +1,2875 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..b1083d8
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,51 @@
++.config*
++*.conf
++*autoconf.h
++*compile.h
++*docproc
++*fixdep
++*bin2c
++*conmakehash
++*genksyms
++*kallsyms
++*modpost
++*mk_elfconfig
++*linux-2.6.37-psp04.04.00.01/include/config/
++
++*.order
++*modules.builtin
++*.o
++*.so
++*.cmd
++*.d
++*.ko
++*.ver
++*.mod.c
++*.a
++
++Config
++Makefile
++copyrights
++patches
++patch
++rrbuilt
++rrfetched
++rrpatched
++rrpreconfig
++series
++.pc
++
++#modified:   linux-2.6.37-psp04.04.00.01/include/config/auto.conf
++#modified:   linux-2.6.37-psp04.04.00.01/include/config/tristate.conf
++#modified:   linux-2.6.37-psp04.04.00.01/include/generated/autoconf.h
++#modified:   linux-2.6.37-psp04.04.00.01/include/generated/compile.h
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/basic/docproc
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/basic/fixdep
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/bin2c
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/conmakehash
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/genksyms/genksyms
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/kallsyms
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/kconfig/conf
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/mod/mk_elfconfig
++#modified:   linux-2.6.37-psp04.04.00.01/scripts/mod/modpost
++
+diff --git a/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c b/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c
+index 3303720..bfdfc63 100644
+--- a/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c
++++ b/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/board-ti8168evm.c
+@@ -25,6 +25,7 @@
+ #include <linux/device.h>
+ #include <linux/mtd/nand.h>
+ #include <linux/spi/spi.h>
++#include <linux/spi/spi_gpio.h>
+ #include <linux/spi/flash.h>
+ #include <linux/mtd/physmap.h>
+ #include <linux/phy.h>
+@@ -32,7 +33,9 @@
+ #include <linux/regulator/machine.h>
+ #include <linux/regulator/gpio-regulator.h>
+ #include <linux/clk.h>
++#include <media/gs2972.h>
+ 
++#include <mach/gpio.h>
+ #include <mach/hardware.h>
+ #include <asm/mach-types.h>
+ #include <asm/mach/arch.h>
+@@ -642,6 +645,70 @@ static int __init ti816x_evm_i2c_init(void)
+ 	return 0;
+ }
+ 
++#define GPIO(port, pin) (((port) << 5) + (pin))
++
++#if defined(CONFIG_SPI_GPIO) || defined(CONFIG_SPI_GPIO_MODULE)
++struct spi_gpio_platform_data spigpio_platform_data = {
++	.sck = GPIO(1, 13),
++	.miso = GPIO(1, 15),
++	.mosi = GPIO(1, 14),
++	.num_chipselect = 4,
++};
++
++static struct platform_device spigpio_device = {
++	.name = "spi_gpio",
++	.id   = 2,
++	.dev = {
++	.platform_data = &spigpio_platform_data,
++  },
++};
++#endif /* CONFIG_SPI_GPIO || CONFIG_SPI_GPIO_MODULE */
++
++
++#if defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++#warning GS2972 platform defines to be moved somewhere else
++
++static struct gs2972_platform_config_s gs2972_platform_config[] = {
++	{
++		.dev_idx = 0,
++		.tim_861 = GPIO(0, 23),
++		._3g_ancb = GPIO(0, 24),
++		.rate_sel1 = GPIO(0, 25),
++		.rate_sel0 = GPIO(0, 26),
++		.smpte_bypass = GPIO(1, 22),
++		.ioproc_en = GPIO(1, 24)
++	},
++	{
++		.dev_idx = 1,
++		.tim_861 = GPIO(0, 23),
++		._3g_ancb = GPIO(0, 24),
++		.rate_sel1 = GPIO(0, 25),
++		.rate_sel0 = GPIO(0, 26),
++		.smpte_bypass = GPIO(1, 22),
++		.ioproc_en = GPIO(1, 24)
++	}
++};
++
++static struct spi_board_info ti8168evm_spi_board_info [] = {
++	{
++		.modalias = "gs2972",
++		.bus_num    = 2,
++		.controller_data = (void *) GPIO(1, 11),
++		.platform_data = (void*) &gs2972_platform_config[0], // device 0
++		.chip_select = 2,
++		.max_speed_hz	= 62500000,
++	},
++	{
++		.modalias = "gs2972",
++		.bus_num    = 2,
++		.controller_data = (void *) GPIO(1, 12),
++		.platform_data = (void*) &gs2972_platform_config[1], // device 1
++		.chip_select = 3,
++		.max_speed_hz	= 62500000,
++	}
++};
++#endif
++
+ /* SPI fLash information */
+ struct mtd_partition ti816x_spi_partitions[] = {
+ 	/* All the partition sizes are listed in terms of NAND block size */
+@@ -750,6 +817,7 @@ static struct omap_board_mux board_mux[] __initdata = {
+ 	TI816X_MUX(UART0_DTRN, OMAP_MUX_MODE1),	/* gpmc_a20 */
+ 	TI816X_MUX(SPI_SCS3, OMAP_MUX_MODE1),	/* gpmc_a21 */
+ 	TI816X_MUX(SPI_SCS2, OMAP_MUX_MODE1),	/* gpmc_a22 */
++	TI816X_MUX(SPI_SCS1, OMAP_MUX_MODE1),	/* gpmc_a23 */
+ 	TI816X_MUX(GP0_IO6, OMAP_MUX_MODE2),	/* gpmc_a23 */
+ 	TI816X_MUX(TIM6_OUT, OMAP_MUX_MODE1),	/* gpmc-a24 */
+ 	TI816X_MUX(SC0_DATA, OMAP_MUX_MODE1),	/* gpmc_a25 */
+@@ -759,6 +827,9 @@ static struct omap_board_mux board_mux[] __initdata = {
+ 	/* Pullup/Pulldown disabled */
+ 	#define DM8168_PULL_DIS			(1 << 3)
+ 
++	/* Pullup select */
++	#define DM8168_PULL_UP			(1 << 4)
++
+ 	/* Capture VIP 1 Port A */
+ 	/*  VIN[1]A_CLK    */
+ 	TI816X_MUX(TSO1_DCLK,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
+@@ -795,6 +866,76 @@ static struct omap_board_mux board_mux[] __initdata = {
+ 	/*  VIN[1]A_D[15]  */
+ 	TI816X_MUX(TSI4_DCLK,   OMAP_MUX_MODE2 | DM8168_PULL_DIS),
+ 
++	/*** GS2971 and GS2972 GPIOs setup ***/
++	//GPIO1
++	TI816X_MUX(SC0_DET, OMAP_MUX_MODE2 | DM8168_PULL_UP),	/* gpio1 9 */  /* SPI CS0   out - pull up by default  */
++	TI816X_MUX(SC0_RST, OMAP_MUX_MODE2 | DM8168_PULL_UP),	/* gpio1 10 */ /* SPI CS1   out - pull up by default  */
++	TI816X_MUX(SC0_CLK, OMAP_MUX_MODE2 | DM8168_PULL_UP),	/* gpio1 11 */ /* SPI CS2   out - pull up by default  */
++	TI816X_MUX(SC0_DATA, OMAP_MUX_MODE2 | DM8168_PULL_UP),	/* gpio1 12 */ /* SPI CS3   out - pull up by default  */
++	TI816X_MUX(SC0_C4, OMAP_MUX_MODE1),	    				/* gpio1 13 */ /* SPI CLK   out */
++	TI816X_MUX(SC0_VCCEN, OMAP_MUX_MODE2),					/* gpio1 14 */ /* SPI DIN0  out */
++	TI816X_MUX(SC0_VPPEN, OMAP_MUX_MODE2),					/* gpio1 15 */ /* SPI DOUT3 in  */
++
++	TI816X_MUX(SPI_SCS3, OMAP_MUX_MODE2 | DM8168_PULL_UP),	 /* gpio1 22*/  /* /SMPTE_BYPASS */
++	TI816X_MUX(UART2_CTSN, OMAP_MUX_MODE3 | DM8168_PULL_UP), /* gpio1 24 */ /* IOPROC_EN/DIS out - pull up by default */
++
++	//GPIO0
++	TI816X_MUX(SC1_DET, OMAP_MUX_MODE2),					/* gpio0 21 */ /* JTAG/HOST */
++	TI816X_MUX(SC1_RST, OMAP_MUX_MODE2 | DM8168_PULL_UP),	/* gpio0 22 */ /* SW_EN     out - pull up by default */
++	TI816X_MUX(SC1_CLK, OMAP_MUX_MODE2 | DM8168_PULL_UP),	/* gpio0 23 */ /* TIM_861   out - pull up by default */
++	TI816X_MUX(SC1_DATA, OMAP_MUX_MODE2),					/* gpio0 24 */ /* 3G_ANCB   */
++	TI816X_MUX(SC1_C4, OMAP_MUX_MODE1),	    				/* gpio0 25 */ /* RSEL1     */
++	TI816X_MUX(SC1_VCCEN, OMAP_MUX_MODE2),					/* gpio0 26 */ /* RSEL0     */
++
++	TI816X_MUX(GP1_IO30, OMAP_MUX_MODE0),					/* gpio1 30 */ /* LED0     */
++	TI816X_MUX(GP1_IO31, OMAP_MUX_MODE0),					/* gpio1 31 */ /* LED1     */
++
++
++	//VIN0A
++	TI816X_MUX(TSI6_BYTSTRT, OMAP_MUX_MODE1), //VIN[0]A_VSYNC
++	TI816X_MUX(TSI6_DATA, OMAP_MUX_MODE1),	  //VIN[0]A_HSYNC
++	TI816X_MUX(TSI6_PACERR, OMAP_MUX_MODE1),  //VIN[0]A_DE
++
++	//VIN1A
++	TI816X_MUX(TSI4_BYTSTRT, OMAP_MUX_MODE2), //VIN[1]A_VSYNC
++	TI816X_MUX(TSI4_DATA, OMAP_MUX_MODE2),    //VIN[1]A_HSYNC
++	TI816X_MUX(TSI4_PACERR, OMAP_MUX_MODE2),  //VIN[1]A_DE
++
++	//VIN1A
++	// TI816X_MUX(TSO1_BYTSTRT, OMAP_MUX_MODE2), //VIN1A_D1
++	// TI816X_MUX(TSO1_DATA, OMAP_MUX_MODE2),	  //VIN1A_D0
++	// TI816X_MUX(TSO1_PACVAL, OMAP_MUX_MODE2),  //VIN1A_D2
++	// TI816X_MUX(TSO1_PACERR, OMAP_MUX_MODE2),  //VIN1A_D3
++	// TI816X_MUX(TSI3_DCLK, OMAP_MUX_MODE2),	  //VIN1A_D4
++	// TI816X_MUX(TSI3_DATA, OMAP_MUX_MODE2),    //VIN1A_D5
++	// TI816X_MUX(TSI3_BYTSTRT, OMAP_MUX_MODE2), //VIN1A_D6
++	// TI816X_MUX(TSI3_PACVAL, OMAP_MUX_MODE2),  //VIN1A_D7
++	// TI816X_MUX(TSI4_BYTSTRT, OMAP_MUX_MODE2), //VIN1A_VSYNC
++	// TI816X_MUX(TSI4_DATA, OMAP_MUX_MODE2),    //VIN1A_HSYNC
++	// TI816X_MUX(TSI4_PACERR, OMAP_MUX_MODE2),  //VIN1A_DE
++	// TI816X_MUX(TSO1_DCLK, OMAP_MUX_MODE2),    //VIN1A_CLK
++
++	//VOUT0
++	TI816X_MUX(TSI7_DATA, OMAP_MUX_MODE1),    // VOUT[0]_VSYNC
++	TI816X_MUX(TSI7_DCLK, OMAP_MUX_MODE1),    // VOUT[0]_HSYNC
++	TI816X_MUX(TSI7_PACVAL, OMAP_MUX_MODE1),  // VOUT[0]_DE
++	TI816X_MUX(VOUT0_CLK, OMAP_MUX_MODE0),    // VOUT[0]_CLK
++
++	//VOUT1
++	TI816X_MUX(TSI5_PACVAL, OMAP_MUX_MODE2),  // VOUT[1]_VSYNC
++	TI816X_MUX(TSI5_BYTSTRT, OMAP_MUX_MODE2), // VOUT[1]_HSYNC
++	TI816X_MUX(TSI6_DCLK, OMAP_MUX_MODE1),    // VOUT[1]_DE
++	TI816X_MUX(TSI5_DCLK, OMAP_MUX_MODE3),    // VOUT[1]_CLK
++
++	TI816X_MUX(VOUT0_R_CR2, OMAP_MUX_MODE2),  //VOUT1_YC0
++	TI816X_MUX(VOUT0_R_CR3, OMAP_MUX_MODE2),  //VOUT1_YC1
++	TI816X_MUX(VOUT0_R_CR4, OMAP_MUX_MODE2),  //VOUT1_YC2
++	TI816X_MUX(VOUT0_R_CR5, OMAP_MUX_MODE2),  //VOUT1_YC3
++	TI816X_MUX(VOUT0_R_CR6, OMAP_MUX_MODE2),  //VOUT1_YC4
++	TI816X_MUX(VOUT0_R_CR7, OMAP_MUX_MODE2),  //VOUT1_YC5
++	TI816X_MUX(VOUT0_R_CR8, OMAP_MUX_MODE2),  //VOUT1_YC6
++	TI816X_MUX(VOUT0_R_CR9, OMAP_MUX_MODE2),  //VOUT1_YC7
++
+ 	{ .reg_offset = OMAP_MUX_TERMINATOR },
+ };
+ #else
+@@ -892,6 +1033,14 @@ static void __init ti8168_evm_init(void)
+ 	omap2_hsmmc_init(mmc);
+ 	board_nor_init(ti816x_evm_norflash_partitions,
+ 		ARRAY_SIZE(ti816x_evm_norflash_partitions), 0);
++
++#if defined(CONFIG_SPI_GPIO) || defined(CONFIG_SPI_GPIO_MODULE)
++	platform_device_register(&spigpio_device);
++#endif
++#if defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++	spi_register_board_info(ti8168evm_spi_board_info, ARRAY_SIZE(ti8168evm_spi_board_info));
++#endif
++
+ 	ti816x_gpio_vr_init();
+ #ifdef CONFIG_SND_SOC_TI81XX_HDMI
+ 	ti8168_hdmi_mclk_init();
+@@ -901,11 +1050,125 @@ static void __init ti8168_evm_init(void)
+ 	regulator_use_dummy_regulator();
+ }
+ 
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE) || \
++    defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++
++#define OMAP4_GPIO_OE				0x0134
++#define OMAP4_GPIO_DATAIN			0x0138
++#define OMAP4_GPIO_DATAOUT			0x013c
++#define OMAP4_GPIO_CLEARDATAOUT		0x0190
++#define OMAP4_GPIO_SETDATAOUT		0x0194
++#if 0
++/* set GPIO output state without requesting it */
++static int ti8168_spare_ctrl(void)
++{
++	u32 phys = 0x48140000;
++	void __iomem *base = NULL;
++	u32 reg  = 0;
++
++
++	base = ioremap(phys, 0x800);
++	if (!base) {
++		pr_err("%s: Could not ioremap 0x%08x\n", __func__, phys);
++		return -ENODEV;
++	}
++
++	reg = __raw_readl(base + 0x0724);
++	printk("%s:%d SPARE_CTRL_0 rd: %08x\n", __FUNCTION__, __LINE__, reg);
++	// output - corresponding bit must be cleared
++	reg &= ~(1 << 1);
++	reg &= ~(1 << 2);
++
++	printk("%s:%d SPARE_CTRL_0 wr: %08x\n", __FUNCTION__, __LINE__, reg);
++	__raw_writel(reg, base + 0x0724);
++
++	iounmap(base);
++	return 0;
++}
++
++#endif
++/* set GPIO output state without requesting it */
++static int ti8168_gs297x_gpio_set_output(int gpio, int val)
++{
++	u32 phys = TI81XX_GPIO0_BASE;
++	void __iomem *base = NULL;
++	int port = gpio >> 5;
++	int pin  = gpio & 0x1F;
++	u32 reg  = 0;
++
++	if (port) {
++		phys = TI81XX_GPIO1_BASE;
++	} 
++
++	base = ioremap(phys, 0x800);
++	if (!base) {
++		pr_err("%s: Could not ioremap GPIO%d at 0x%08x\n", __func__, port, phys);
++		return -ENODEV;
++	}
++
++	reg = __raw_readl(base + OMAP4_GPIO_OE);
++	// output - corresponding bit must be cleared
++	reg &= ~(1 << pin);
++
++	__raw_writel(reg, base + OMAP4_GPIO_OE);
++
++	// set corresponding bit in SET or CLEAR register
++	reg = 1 << pin;
++	if (val) {
++		__raw_writel(reg, base + OMAP4_GPIO_SETDATAOUT);
++	}
++	else {
++		__raw_writel(reg, base + OMAP4_GPIO_CLEARDATAOUT);
++	}
++
++	iounmap(base);
++	return 0;
++}
++
++static int __init ti8168_gs297x_gpio_setup(void)
++{
++	/* GS2971 and GS2972 GPIO config */
++
++	// JTAG/HOST=0 work in
++	// ti8168_gs297x_gpio_set_output(GPIO(0, 21), 0x0);
++
++	// /SMPTE_BYPASS=1
++	// ti8168_gs297x_gpio_set_output(GPIO(1, 22), 0x1);
++	// ti8168_gs297x_gpio_set_output(GPIO(0, 23), 0x1);
++
++	// Applicable only for GS2972 serializer
++#if 0
++	// 3G_ANCB=0
++	/*
++	  ???? What is this pin, could not find it!
++	 */
++	gpio_request(GPIO(0,24), "3G_ANCB");
++	ti8168_gs297x_gpio_set_output(GPIO(0, 24), 0x0);
++#endif
++	// RATE_SEL1=0
++	// ti8168_gs297x_gpio_set_output(GPIO(0, 25), 0x0);
++	// RATE_SEL0=0
++	// ti8168_gs297x_gpio_set_output(GPIO(0, 26), 0x0);
++
++	return 0;
++}
++#endif
++
+ static int __init ti8168_evm_gpio_setup(void)
+ {
+ 	/* GPIO-20 should be low for NOR access beyond 4KiB */
+ 	gpio_request(20, "nor");
+ 	gpio_direction_output(20, 0x0);
++
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE) || \
++    defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++  #if 0
++	ti8168_gs297x_gpio_setup();
++	ti8168_spare_ctrl();
++  #endif
++#endif
++
++
+ 	return 0;
+ }
+ /* GPIO setup should be as subsys_initcall() as gpio driver
+diff --git a/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c b/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c
+index b18bd55..140ccf7 100644
+--- a/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c
++++ b/linux-2.6.37-psp04.04.00.01/arch/arm/mach-omap2/ti81xx_vpss.c
+@@ -33,6 +33,10 @@
+ #include <linux/bootmem.h>
+ #include <linux/io.h>
+ #include <linux/vps_capture.h>
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++	#include <linux/spi/spi.h>
++	#include <media/gs2971.h>
++#endif
+ #include <linux/ti81xxfb.h>
+ #include <linux/ti81xx.h>
+ #include <mach/hardware.h>
+@@ -120,6 +124,8 @@ static int __init ti81xx_hdmi_init(void)
+ #define HDVPSS_CAPTURE_INST2_BASE	0x48105A00
+ #define HDVPSS_CAPTURE_INST2_SIZE	1024u
+ u8 ti81xx_card_name[] = "TI81xx_catalogue";
++
++#if defined(CONFIG_VIDEO_TVP7002) || defined(CONFIG_VIDEO_TVP7002_MODULE)
+ struct ti81xxvin_interface tvp7002_pdata = {
+ 	.clk_polarity = 0,
+ 	.hs_polarity = 0,
+@@ -128,6 +134,31 @@ struct ti81xxvin_interface tvp7002_pdata = {
+ 	.sog_polarity = 0,
+ 
+ };
++#endif
++
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++#define GPIO(port, pin) (((port) << 5) + (pin))
++
++static struct gs2971_platform_config_s gs2971_platform_config[] = {
++	{
++		.dev_idx = 0,
++		.sw_en = GPIO(0, 22),
++		.tim_861 = GPIO(0, 23),
++		.smpte_bypass = GPIO(1, 22),
++		.ioproc_en = GPIO(1, 24)
++	},
++	{
++		.dev_idx = 1,
++		.sw_en = GPIO(0, 22),
++		.tim_861 = GPIO(0, 23),
++		.smpte_bypass = GPIO(1, 22),
++		.ioproc_en = GPIO(1, 24)
++	}
++};
++#endif /* CONFIG_VIDEO_GS2971 */
++
++
++#if defined(CONFIG_VIDEO_TVP7002) || defined(CONFIG_VIDEO_TVP7002_MODULE)
+ static struct ti81xxvin_subdev_info hdvpss_capture_sdev_info[] = {
+ 	{
+ 		.name	= TVP7002_INST0,
+@@ -198,6 +229,96 @@ static struct ti81xxvin_subdev_info hdvpss_capture_sdev_info[] = {
+ 		.input_data_format = FVID2_DF_YUV422P,
+ 	},
+ };
++#elif defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++static struct ti81xxvin_subdev_info hdvpss_capture_sdev_info[] = {
++	{
++		.name	= GS2971_INST0,
++		.board_info = {
++			.modalias = "gs2971",
++			.bus_num    = 2,
++			.controller_data = (void *) GPIO(1, 9),
++			.platform_data = (void*) &gs2971_platform_config[0], // device 0
++			.max_speed_hz	= 62500000,
++			.chip_select = 0
++		},
++		.vip_port_cfg = {
++			.ctrlChanSel = VPS_VIP_CTRL_CHAN_DONT_CARE,
++			.ancChSel8b = VPS_VIP_ANC_CH_SEL_DONT_CARE,			// Where to extract Vertical Ancillary Data: Chroma, Luma, Don't Care
++			.pixClkEdgePol = VPS_VIP_PIX_CLK_EDGE_POL_RISING,	// Pixel Clock edge polarity
++			.invertFidPol = 0,									// false: keep FID as found, true: invert value of FID
++
++			// Embedded Sync mode setup
++			.embConfig = {
++				.errCorrEnable = 1,								// TRUE: Error Correction enable, FALSE: disabled
++				.srcNumPos = VPS_VIP_SRC_NUM_POS_DONT_CARE,
++				.isMaxChan3Bits = 0,							// FALSE: Use all 5 bits of the field for 32 total sources
++			},
++			// Discrete Sync mode setup
++			.disConfig = {
++				.fidSkewPostCnt = 0,
++				.fidSkewPreCnt = 0,
++				.lineCaptureStyle = VPS_VIP_LINE_CAPTURE_STYLE_ACTVID,
++				.fidDetectMode = VPS_VIP_FID_DETECT_MODE_VSYNC,
++				.actvidPol = VPS_VIP_POLARITY_HIGH,
++				.vsyncPol = VPS_VIP_POLARITY_HIGH,
++				.hsyncPol = VPS_VIP_POLARITY_HIGH,
++			}
++		},
++		.vip_cfg = {
++			.clipActive = 0,
++			.clipBlank = 1,
++		},
++		.video_capture_mode = VPS_CAPT_VIDEO_CAPTURE_MODE_SINGLE_CH_NON_MUX_DISCRETE_SYNC_HSYNC_VSYNC,
++		                                                                 // Video capture operation mode -
++		                                                                 // Single Channel non multiplexed mode
++		.video_if_mode = VPS_CAPT_VIDEO_IF_MODE_8BIT,                    // Video interface mode - Embedded sync mode:  8bit - BT656 standard
++		.input_data_format = FVID2_DF_YUV422P,							 // Data format = YUV 422 Planar - Y, U and V separate.
++
++	},
++	{
++		.name	= GS2971_INST1,
++		.board_info = {
++			.modalias = "gs2971",
++			.bus_num    = 2,
++			.controller_data = (void *) GPIO(1, 10),
++			.platform_data = (void*) &gs2971_platform_config[1], // device 1
++			.max_speed_hz	= 62500000,
++			.chip_select = 1
++		},
++		.vip_port_cfg = {
++			.ctrlChanSel = VPS_VIP_CTRL_CHAN_DONT_CARE,
++			.ancChSel8b = VPS_VIP_ANC_CH_SEL_DONT_CARE,
++			.pixClkEdgePol = VPS_VIP_PIX_CLK_EDGE_POL_RISING,
++			.invertFidPol = 0,
++
++			// Embedded Sync mode setup
++			.embConfig = {
++				.errCorrEnable = 1,
++				.srcNumPos = VPS_VIP_SRC_NUM_POS_DONT_CARE,
++				.isMaxChan3Bits = 0,
++			},
++			// Discrete Sync mode setup
++			.disConfig = {
++				.fidSkewPostCnt = 0,
++				.fidSkewPreCnt = 0,
++				.lineCaptureStyle = VPS_VIP_LINE_CAPTURE_STYLE_ACTVID,
++				.fidDetectMode = VPS_VIP_FID_DETECT_MODE_VSYNC,
++				.actvidPol = VPS_VIP_POLARITY_HIGH,
++				.vsyncPol = VPS_VIP_POLARITY_HIGH,
++				.hsyncPol = VPS_VIP_POLARITY_HIGH,
++			}
++		},
++		.vip_cfg = {
++			.clipActive = 0,
++			.clipBlank = 1,
++		},
++		.video_capture_mode = VPS_CAPT_VIDEO_CAPTURE_MODE_SINGLE_CH_NON_MUX_DISCRETE_SYNC_HSYNC_VSYNC,
++		.video_if_mode = VPS_CAPT_VIDEO_IF_MODE_8BIT,
++		.input_data_format = FVID2_DF_YUV422P,
++	},
++};
++#endif
++
+ 
+ static const struct v4l2_dv_preset hdvpss_inst0_inp0_presets[] = {
+ 	{
+@@ -238,7 +359,7 @@ static const struct ti81xxvin_input hdvpss_inst0_inputs[] = {
+ 			.std		= V4L2_STD_UNKNOWN,
+ 			.capabilities	= V4L2_OUT_CAP_PRESETS,
+ 		},
+-		.subdev_name	= TVP7002_INST0,
++		.subdev_name	= TI81XXVIN_INST0,
+ 		.dv_presets	= hdvpss_inst0_inp0_presets,
+ 		.num_dv_presets	= ARRAY_SIZE(hdvpss_inst0_inp0_presets),
+ 	},
+@@ -253,7 +374,7 @@ static const struct ti81xxvin_input hdvpss_inst1_inputs[] = {
+ 			.std		= V4L2_STD_UNKNOWN,
+ 			.capabilities	= V4L2_OUT_CAP_PRESETS,
+ 		},
+-		.subdev_name	= TVP7002_INST1,
++		.subdev_name	= TI81XXVIN_INST1,
+ 		.dv_presets	= hdvpss_inst2_inp0_presets,
+ 		.num_dv_presets	= ARRAY_SIZE(hdvpss_inst2_inp0_presets),
+ 	},
+@@ -329,13 +450,20 @@ static int __init ti81xx_vin_init(void)
+ 			NULL;
+ 		hdvpss_capture_sdev_info[1].decoder_id = 0;
+ 	} else {
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++		hdvpss_capture_sdev_info[0].ti81xxvin_select_decoder = NULL;
++		hdvpss_capture_sdev_info[0].ti81xxvin_set_mode = NULL;
++		hdvpss_capture_sdev_info[0].decoder_id = 0;
++		hdvpss_capture_sdev_info[1].ti81xxvin_select_decoder = NULL;
++		hdvpss_capture_sdev_info[1].ti81xxvin_set_mode = NULL;
++		hdvpss_capture_sdev_info[1].decoder_id = 2;
++#else
+ 		hdvpss_capture_sdev_info[0].ti81xxvin_select_decoder =
+ 			vps_ti816x_select_video_decoder;
+-		hdvpss_capture_sdev_info[0].ti81xxvin_set_mode =
++		hdvpss_capture_sdev_info[0].ti81xxvin_set_mode = 
+ 			vps_ti816x_set_tvp7002_filter;
+ 		hdvpss_capture_sdev_info[0].decoder_id =
+ 			VPS_SEL_TVP7002_DECODER_VIP0;
+-
+ 		/*Added functions to control the chips on the daughter card
+ 		 *in order to get the data into VIP1*/
+ 		hdvpss_capture_sdev_info[1].ti81xxvin_select_decoder =
+@@ -344,6 +472,7 @@ static int __init ti81xx_vin_init(void)
+ 			vps_ti816x_set_tvp7002_filter;
+ 		hdvpss_capture_sdev_info[1].decoder_id =
+ 			VPS_SEL_TVP7002_DECODER_VIP1;
++#endif
+ 	}
+ 	r = platform_device_register(&hdvpss_capture_dev);
+ 	if (r)
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/Kconfig b/linux-2.6.37-psp04.04.00.01/drivers/media/video/Kconfig
+index ddf6657..af42b51 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/media/video/Kconfig
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/Kconfig
+@@ -443,6 +443,24 @@ config VIDEO_VPX3220
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called vpx3220.
+ 
++config VIDEO_GS2971
++	tristate "GS2971 video deserializer"
++	depends on VIDEO_V4L2 && SPI && (VIDEO_TVP7002=n)
++	---help---
++	  Support for the GS2971 video deserializer.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called gs2971.
++
++config VIDEO_GS2972
++	tristate "GS2972 video serializer"
++	depends on SPI
++	---help---
++	  Support for the GS2972 video serializer.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called gs2972.
++
+ comment "Video and audio decoders"
+ 
+ source "drivers/media/video/cx25840/Kconfig"
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/Makefile b/linux-2.6.37-psp04.04.00.01/drivers/media/video/Makefile
+index 8803121..4a5a4be 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/media/video/Makefile
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/Makefile
+@@ -78,6 +78,9 @@ obj-$(CONFIG_VIDEO_MT9V113) += mt9v113.o
+ obj-$(CONFIG_VIDEO_SR030PC30)	+= sr030pc30.o
+ obj-$(CONFIG_VIDEO_MT9T111) += mt9t111.o
+ 
++obj-$(CONFIG_VIDEO_GS2971) += gs2971.o
++obj-$(CONFIG_VIDEO_GS2972) += gs2972.o
++
+ obj-$(CONFIG_SOC_CAMERA_IMX074)		+= imx074.o
+ obj-$(CONFIG_SOC_CAMERA_MT9M001)	+= mt9m001.o
+ obj-$(CONFIG_SOC_CAMERA_MT9M111)	+= mt9m111.o
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2971.c b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2971.c
+new file mode 100644
+index 0000000..4221f6c
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2971.c
+@@ -0,0 +1,1033 @@
++//#define DEBUG
++#include <linux/ctype.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/ioctl.h>
++#include <linux/fs.h>
++#include <linux/device.h>
++#include <linux/list.h>
++#include <linux/errno.h>
++#include <linux/mutex.h>
++#include <linux/slab.h>
++#include <linux/gpio.h>
++#include <linux/proc_fs.h>
++#include <linux/seq_file.h>
++
++#include <linux/spi/spi.h>
++#include <linux/device.h>
++#include <linux/cdev.h>
++
++//#include <asm/arch/video_evm.h>
++#include <asm/uaccess.h>
++
++#include <media/v4l2-ioctl.h>
++#include <linux/videodev2.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-chip-ident.h>
++#include <asm/uaccess.h>
++
++#include <media/gs2971.h>
++#include "gs2971_regs.h"
++
++#include "gs297x_spi.h"
++
++#define GS2971_SPI_TRANSFER_MAX 1024
++
++#define DRIVER_NAME     "gs2971"
++
++#define NUM_PRESETS		ARRAY_SIZE(gs2971_presets)
++
++#define GPIO(port, pin) (((port) << 5) + (pin))
++
++#define DEV_NO(dev)		((dev) ? (dev->dev_no) : (-1))
++
++#define dbg(level, debug, fmt, arg...)                      \
++	do {                                                    \
++		if (debug >= (level))                               \
++			printk(KERN_INFO DRIVER_NAME": " fmt , ## arg); \
++	} while (0)
++
++#define dbg_info(fmt, arg...)                  				\
++	do {                                                    \
++		printk(KERN_INFO DRIVER_NAME": " fmt , ## arg); 			\
++	} while (0)
++
++/* Debug functions */
++static int debug = 0;
++module_param(debug, int, 0644);
++MODULE_PARM_DESC(debug, "Debug level (0-2)");
++
++/* Function Prototypes */
++static int gs2971_initialize(struct v4l2_subdev *sd);
++static int gs2971_deinitialize(struct v4l2_subdev *sd);
++
++/* Specific video subsystem operation handlers */
++static int gs2971_enum_dv_presets(struct v4l2_subdev *sd, struct v4l2_dv_enum_preset *preset);
++static int gs2971_s_dv_preset(struct v4l2_subdev *sd, struct v4l2_dv_preset *dv_preset);
++static int gs2971_query_dv_preset(struct v4l2_subdev *sd, struct v4l2_dv_preset *qpreset);
++static int gs2971_s_stream(struct v4l2_subdev *sd, int enable);
++static int gs2971_mbus_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *f);
++static int gs2971_enum_mbus_fmt(struct v4l2_subdev *sd, unsigned index, enum v4l2_mbus_pixelcode *code);
++
++/* V4L2 core operation handlers */
++static int gs2971_g_chip_ident(struct v4l2_subdev *sd, struct v4l2_dbg_chip_ident *chip);
++static int gs2971_log_status(struct v4l2_subdev *sd);
++
++/* Structures Definitions */
++struct gs2971_spidata_s {
++	struct spi_device *spi;
++};
++
++struct gs2971_device_s {
++	struct v4l2_subdev                       sd;
++	struct gs2971_spidata_s                 *spidata;
++	struct gs2971_platform_config_s         *config;
++	int                                      streaming;
++	int                                      automode;
++	int                                      rate_sel;   		// it is only used in manual mode
++	int                                      tim861_enabled;
++	const struct gs2971_preset_definition_s *current_preset;
++	int                                      dev_no;
++};
++
++/* Preset definition for handling device operation */
++struct gs2971_preset_definition_s {
++	u32 	preset;
++	u8  	vd_std;
++	u8  	rate_det;
++	enum 	v4l2_colorspace color_space;
++	enum 	v4l2_field scanmode;
++	u16 	progressive;
++	u16 	lines_per_frame;
++	u16 	active_lines_per_frame;
++	u16 	words_per_active_line;
++	u16 	words_per_line;
++};
++
++/* Struct list for digital video presets */
++static const struct gs2971_preset_definition_s gs2971_presets[] = {
++	{
++		V4L2_DV_1080P30,
++		0x0b,
++		GS2971_HD,
++		V4L2_COLORSPACE_REC709,
++		V4L2_FIELD_NONE,
++		1,
++		1125,
++		1080,
++		1920,
++		2200
++	}
++ 	/* It seems that current HW design (8bit data width connection) disallows
++	   3G-SDI - 1080p60 */
++#if 0
++	,
++	{
++		V4L2_DV_1080P60,
++		0x2b,
++		GS2971_3G,
++		V4L2_COLORSPACE_REC709, /// ???
++		#warning GS2971C presets what colorspace
++		V4L2_FIELD_NONE,
++		1,
++		1125,
++		1080,
++		1920,
++		2200
++	}
++#endif
++};
++
++static struct gs2971_device_s gs2971_devices[GS2971_NUM_DEVICES] = {
++	{
++		.spidata = NULL,
++	},
++	{
++		.spidata = NULL,
++	},
++};
++
++/* Specific video subsystem operation handlers */
++static const struct v4l2_subdev_video_ops gs2971_video_ops = {
++	.enum_dv_presets = gs2971_enum_dv_presets,
++	.s_dv_preset     = gs2971_s_dv_preset,
++	.query_dv_preset = gs2971_query_dv_preset,
++	.s_stream        = gs2971_s_stream,
++	.g_mbus_fmt      = gs2971_mbus_fmt,
++	.try_mbus_fmt    = gs2971_mbus_fmt,
++	.s_mbus_fmt      = gs2971_mbus_fmt,
++	.enum_mbus_fmt   = gs2971_enum_mbus_fmt,
++};
++
++/* V4L2 core operation handlers */
++static const struct v4l2_subdev_core_ops gs2971_core_ops = {
++	.g_chip_ident = gs2971_g_chip_ident,
++	.log_status   = gs2971_log_status,
++};
++
++static const struct v4l2_subdev_ops gs2971_ops = {
++	.core  = &gs2971_core_ops,
++	.video = &gs2971_video_ops,
++};
++
++/*********************************************************\
++\*********************************************************/
++static inline struct gs2971_device_s *to_gs2971(struct v4l2_subdev *sd)
++{
++	return (sd) ? container_of(sd, struct gs2971_device_s, sd) : NULL;
++}
++
++
++/*********************************************************\
++\*********************************************************/
++static struct spi_device *gs2971_get_spi( struct gs2971_device_s *gs2971_device )
++{
++	 if ((gs2971_device == NULL) || (gs2971_device->spidata == NULL)) {
++			return NULL;
++	 }
++
++	 return gs2971_device->spidata->spi;
++
++}
++
++/*********************************************************\
++\*********************************************************/
++static struct device *gs2971_get_dev( struct gs2971_device_s *gs2971_device )
++{
++	 if ((gs2971_device == NULL) || (gs2971_device->spidata == NULL) || (gs2971_device->spidata->spi == NULL)) {
++			return NULL;
++	 }
++
++	 return &gs2971_device->spidata->spi->dev;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_dump_regs(struct v4l2_subdev *sd)
++{
++	struct gs2971_device_s *gs2971_device = to_gs2971(sd);
++	struct spi_device *spi = gs2971_get_spi(gs2971_device);
++
++	v4l2_dbg(2, debug, sd, "[%d] ++%s:%d gs2971_device:%p spi:%p\n", DEV_NO(gs2971_device), __FUNCTION__, __LINE__, gs2971_device, spi);
++
++	if (gs2971_device && spi) {
++		u16 val = 0;
++
++		gs297x_read_register(spi, GS2971_DATA_FORMAT_DS1_ADDR, &val);
++		v4l2_info(sd, "   GS2971[%d] DATA_FORMAT_DS1 = 0x%04x\n", gs2971_device->config->dev_idx, val);
++
++		gs297x_read_register(spi, GS2971_IO_CONFIG_ADDR, &val);
++		v4l2_info(sd, "   GS2971[%d] IO_CONFIG       = 0x%04x\n", gs2971_device->config->dev_idx, val);
++
++		gs297x_read_register(spi, GS2971_IO_CONFIG2_ADDR, &val);
++		v4l2_info(sd, "   GS2971[%d] IO_CONFIG2      = 0x%04x\n", gs2971_device->config->dev_idx, val);
++
++		gs297x_read_register(spi, GS2971_IOPROC_1_ADDR, &val);
++		v4l2_info(sd, "   GS2971[%d] IOPROC_1        = 0x%04x\n", gs2971_device->config->dev_idx, val);
++
++		gs297x_read_register(spi, GS2971_IOPROC_2_ADDR, &val);
++		v4l2_info(sd, "   GS2971[%d] IOPROC_2        = 0x%04x\n", gs2971_device->config->dev_idx, val);
++
++		// gs297x_read_register(spi, GS2971_IO_CONFIG2_ADDR, &val);
++		// v4l2_info(sd, "   GS2971[%d] IO_CONFIG2      = 0x%04x\n", gs2971_device->config->dev_idx, val);
++		// gs297x_read_register(spi, GS2971_RATE_SEL_ADDR, &val);
++		// v4l2_info(sd, "   GS2971[%d] RATE_SEL        = 0x%04x\n", gs2971_device->config->dev_idx, val);
++		// gs297x_read_register(spi, GS2971_DATA_FORMAT_DS1_ADDR, &val);
++		// v4l2_info(sd, "   GS2971[%d] DATA_FORMAT_DS1 = 0x%04x\n", gs2971_device->config->dev_idx, val);
++	}
++	v4l2_dbg(2, debug, sd, "[%d] --%s:%d \n", DEV_NO(gs2971_device), __FUNCTION__, __LINE__);
++	return 0;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_initialize(struct v4l2_subdev *sd)
++{
++	struct gs2971_device_s *gs2971_device = to_gs2971(sd);
++	int rv = -EINVAL;
++
++	v4l2_dbg(2, debug, sd, "[%d] ++%s:%d sd:%p\n", DEV_NO(gs2971_device), __FUNCTION__, __LINE__, sd);
++
++	if (gs2971_device) {
++		struct spi_device *spi = gs2971_get_spi(gs2971_device);
++		u16 val = 0;
++		gs2971_device->automode = 0;
++		#warning automode disabled 
++		gs2971_device->streaming = 0;
++		gs2971_device->tim861_enabled = 1;
++		gs2971_device->rate_sel = GS2971_HD; // it is only used in manual mode
++
++		gs297x_read_register(spi, GS2971_IOPROC_1_ADDR, &val);
++		val |= GS2971_IOPROC_1_TIM_861_PIN_DIS_MASK;
++
++		/* TIM_861 enable/disable */
++		if (gs2971_device->tim861_enabled) {
++			val |= GS2971_IOPROC_1_TIMING_861_MASK;
++		}
++		else {
++			val &= ~GS2971_IOPROC_1_TIMING_861_MASK;
++		}
++		rv = gs297x_write_register( spi, GS2971_IOPROC_1_ADDR, val);
++		v4l2_dbg(2, debug, sd, "CEA 861 Timing %s\n", (gs2971_device->tim861_enabled) ? "enabled" : "disabled");
++
++		if (gs2971_device->automode == 0) {
++			rv = gs297x_read_register( spi, GS2971_RATE_SEL_ADDR, &val);
++
++			val &= ~(GS2971_RATE_SEL_AUTO_NOT_MAN_MASK | GS2971_RATE_SEL_TOP_MASK);
++			val |= (gs2971_device->rate_sel << GS2971_RATE_SEL_TOP_SHIFT);
++
++			rv = gs297x_write_register( spi, GS2971_RATE_SEL_ADDR, val);
++		}
++		if (debug) {
++			gs2971_dump_regs(sd);
++		}
++		rv = 0;
++	}
++	try_module_get(THIS_MODULE);
++
++	v4l2_dbg(2, debug, sd, "[%d] --%s:%d rv:%d \n", DEV_NO(gs2971_device), __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_deinitialize(struct v4l2_subdev *sd)
++{
++	// struct gs2971_device_s *gs2971_device = to_gs2971(sd);
++	// struct device *dev;
++
++	v4l2_dbg(2, debug, sd, "[%d] ++%s:%d sd:%p \n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd);
++
++	// dev = gs2971_get_dev( gs2971_device );
++
++	module_put(THIS_MODULE);
++
++	v4l2_dbg(2, debug, sd, "[%d] --%s:%d \n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__);
++
++	return 0;
++}
++
++
++/*********************************************************\
++ * gs2971_g_chip_ident() - Get chip identification number
++ * @sd: ptr to v4l2_subdev struct
++ * @chip: ptr to v4l2_dbg_chip_ident struct
++ *
++ * Obtains the chip's identification number.
++ * Returns zero or -EINVAL if read operation fails.
++\*********************************************************/
++static int gs2971_g_chip_ident(struct v4l2_subdev *sd, struct v4l2_dbg_chip_ident *chip)
++{
++	int rv = -EINVAL;
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p \n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd);
++
++	if (sd && chip) {
++		chip->ident = V4L2_IDENT_GS2971;
++		chip->revision = 0;
++		rv = 0;
++		v4l2_dbg(2, debug, sd, "   %s:%d chip ident:%d \n", __FUNCTION__, __LINE__, chip->ident);
++	}
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d \n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, rv);
++	return -EINVAL;
++}
++
++/*********************************************************\
++ * gs2971_log_status() - Print information about register settings
++ * @sd: ptr to v4l2_subdev struct
++ *
++ * Log register values of a GS2971 deserializer device.
++ * Returns zero or -EINVAL if read operation fails.
++\*********************************************************/
++static int gs2971_log_status(struct v4l2_subdev *sd)
++{
++	const struct gs2971_preset_definition_s *presets = gs2971_presets;
++	struct gs2971_device_s *gs2971_device = to_gs2971( sd );
++	struct v4l2_dv_enum_preset e_preset;
++	struct v4l2_dv_preset detected;
++	int i;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p \n", DEV_NO(gs2971_device), __FUNCTION__, __LINE__, sd);
++
++	detected.preset = V4L2_DV_INVALID;
++	/* Find my current standard*/
++	gs2971_query_dv_preset(sd, &detected);
++
++	/* Print standard related code values */
++	for (i = 0; i < NUM_PRESETS; i++, presets++) {
++		if (presets->preset == detected.preset) {
++			break;
++		}
++	}
++
++	if (v4l_fill_dv_preset_info(gs2971_device->current_preset->preset, &e_preset)) {
++		return -EINVAL;
++	}
++
++	v4l2_info(sd, "Selected DV Preset: %s\n", e_preset.name);
++	v4l2_info(sd, "   Pixels per line: %u\n", e_preset.width);
++	v4l2_info(sd, "   Lines per frame: %u\n\n", e_preset.height);
++	if (i == NUM_PRESETS) {
++		v4l2_info(sd, "Detected DV Preset: None\n");
++	} else {
++		if (v4l_fill_dv_preset_info(presets->preset, &e_preset)) {
++			return -EINVAL;
++		}
++		v4l2_info(sd, "Detected DV Preset: %s\n", e_preset.name);
++		v4l2_info(sd, "  Pixels per line: %u\n", e_preset.width);
++		v4l2_info(sd, "  Lines per frame: %u\n\n", e_preset.height);
++	}
++	v4l2_info(sd, "Streaming enabled: %s\n",
++					gs2971_device->streaming ? "yes" : "no");
++
++
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d \n", DEV_NO(gs2971_device), __FUNCTION__, __LINE__);
++
++	return 0;
++}
++
++/*********************************************************\
++ * gs2971_enum_dv_presets() - Enum supported digital video formats
++ * @sd: pointer to standard V4L2 sub-device structure
++ * @preset: pointer to format struct
++ *
++ * Enumerate supported digital video formats.
++\*********************************************************/
++static int gs2971_enum_dv_presets(struct v4l2_subdev *sd, struct v4l2_dv_enum_preset *preset)
++{
++	int rv = -EINVAL;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p preset:%p\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd, preset);
++
++	if (preset) {
++		v4l2_dbg(2, debug, sd, "   %s:%d preset->index:%d\n", __FUNCTION__, __LINE__, preset->index);
++
++		/* Check requested format index is within range */
++		if ((preset->index >= 0) && (preset->index < NUM_PRESETS)) {
++			rv = v4l_fill_dv_preset_info(gs2971_presets[preset->index].preset, preset);
++		}
++	}
++
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++ * gs2971_s_dv_preset() - Set digital video preset
++ * @sd: ptr to v4l2_subdev struct
++ * @dv_preset: ptr to v4l2_dv_preset struct
++ *
++ * Set the digital video preset for a GS2971 decoder device.
++ * Returns zero when successful or -EINVAL if register access fails.
++\*********************************************************/
++static int gs2971_s_dv_preset(struct v4l2_subdev *sd, struct v4l2_dv_preset *dv_preset)
++{
++	struct gs2971_device_s *gs2971_device  = to_gs2971(sd);
++	int i = 0;
++	int rv = -EINVAL;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p dv_preset:%p\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd, dv_preset);
++
++	if ((dv_preset) != NULL && (gs2971_device != NULL)) {
++
++		v4l2_dbg(1, debug, sd, "   %s:%d preset:%d\n", __FUNCTION__, __LINE__, dv_preset->preset);
++
++		for (i = 0; i < NUM_PRESETS; i++) {
++
++			if (gs2971_presets[i].preset == dv_preset->preset) {
++				gs2971_device->current_preset = &gs2971_presets[i];
++
++				/*
++				   If GS2971 is not in manual mode, then rate (HD, 3G, SD) must be selected manually
++				   depending on standard
++				 */
++				if (!gs2971_device->automode) {
++					struct spi_device *spi = gs2971_get_spi(gs2971_device);
++					u16 reg = 0;
++
++					/* Read current RATE_SEL register value */
++					rv = gs297x_read_register( spi, GS2971_RATE_SEL_ADDR, &reg);
++					if (rv != 0) {
++						break;
++					}
++					v4l2_dbg(1, debug, sd, "   %s:%d GS2971[%d] RATE_SEL = 0x%04x\n", __FUNCTION__, __LINE__,
++									gs2971_device->config->dev_idx, reg);
++					reg &= ~GS2971_RATE_SEL_TOP_MASK;
++					reg |= gs2971_device->current_preset->rate_det << GS2971_RATE_SEL_TOP_SHIFT;
++					rv = gs297x_write_register( spi, GS2971_RATE_SEL_ADDR, reg);
++				}
++				rv = 0;
++				/*
++				  Just check if standard is present on the list of presets.
++				  GS2971 automatically detects standard of incoming signal.
++				  No need to set.
++				 */
++				break;
++			}
++		}
++	}
++
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++ * gs2971_query_dv_preset() - query DV preset
++ * @sd: pointer to standard V4L2 sub-device structure
++ * @qpreset: standard V4L2 v4l2_dv_preset structure
++ *
++ * Returns the current DV preset by GS2971. If no active input is
++ * detected, returns -EINVAL
++\*********************************************************/
++static int gs2971_query_dv_preset(struct v4l2_subdev *sd, struct v4l2_dv_preset *qpreset)
++{
++	const struct gs2971_preset_definition_s *presets = gs2971_presets;
++	struct spi_device     *spi = NULL;
++	struct gs2971_device_s *gs2971_device  = NULL;
++	u16 reg = 0;
++
++	u16 lines_per_frame;
++	u16 active_lines_per_frame;
++	u16 words_per_active_line;
++	u16 words_per_line;
++	u16 interlaced;
++	u16 vd_std;
++	u16 rate_det;
++	int index;
++	int rv = 0;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p qpreset:%p\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd, qpreset);
++
++	do {
++		gs2971_device = to_gs2971(sd);
++		if (gs2971_device == NULL) {
++			rv = -EINVAL;
++			break;
++		}
++
++		spi = gs2971_get_spi(gs2971_device);
++		if ( NULL == spi ) {
++			rv = -ENODEV;
++			break;
++		}
++
++		if (!qpreset) {
++			rv = -EINVAL;
++			break;
++		}
++
++		qpreset->preset = V4L2_DV_INVALID;
++
++		/* Read standards from device registers */
++		rv = gs297x_read_register( spi, GS2971_RASTER_STRUC_4_ADDR, &reg);
++		if (rv != 0) {
++			break;
++		}
++
++		if (reg & GS2971_RASTER_STRUC_4_STD_LOCK_MASK) {
++			interlaced = (reg & GS2971_RASTER_STRUC_4_INT_NOT_PROG_MASK) >> GS2971_RASTER_STRUC_4_INT_NOT_PROG_SHIFT;
++			active_lines_per_frame = (reg & GS2971_RASTER_STRUC_4_ACTLINE_PER_FIELD_MASK);
++			rate_det = (reg & GS2971_RASTER_STRUC_4_RATE_SEL_READBACK_MASK) >> GS2971_RASTER_STRUC_4_RATE_SEL_READBACK_SHIFT;
++
++			rv = gs297x_read_register( spi, GS2971_RASTER_STRUC_3_ADDR, &lines_per_frame);
++			if (rv != 0) {
++				break;
++			}
++			lines_per_frame &= GS2971_RASTER_STRUC_3_LINES_PER_FRAME_MASK;
++
++			rv = gs297x_read_register( spi, GS2971_RASTER_STRUC_2_ADDR, &words_per_line);
++			if (rv != 0) {
++				break;
++			}
++			words_per_line &= GS2971_RASTER_STRUC_2_WORDS_PER_LINE_MASK;
++
++			rv = gs297x_read_register( spi, GS2971_RASTER_STRUC_1_ADDR, &words_per_active_line);
++			if (rv != 0) {
++				break;
++			}
++			words_per_active_line &= GS2971_RASTER_STRUC_1_WORDS_PER_ACTLINE_MASK;
++
++			rv = gs297x_read_register( spi, GS2971_DATA_FORMAT_DS1_ADDR, &vd_std);
++			if (rv != 0) {
++				break;
++			}
++			vd_std  &= GS2971_DATA_FORMAT_DS1_VD_STD_DS1_MASK;
++			vd_std >>= GS2971_DATA_FORMAT_DS1_VD_STD_DS1_SHIFT;
++
++			// rv = gs297x_read_register( spi, GS2971_RATE_SEL_ADDR, &rate_det);
++			// if (rv != 0) {
++			// 	break;
++			// }
++			// rate_det  &= GS2971_DATA_FORMAT_DS1_VD_STD_DS1_MASK;
++			// rate_det >>= GS2971_DATA_FORMAT_DS1_VD_STD_DS1_SHIFT;
++
++			v4l2_dbg(1, debug, sd, "video params detected: \n"
++									" rate_det[1:0]          = %d\n"
++									" lines per frame        = %d\n"
++									" words per line         = %d\n"
++									" words per active line  = %d\n"
++									" active lines per frame = %d\n"
++									" vd_std                 = 0x%02x",
++									rate_det, lines_per_frame, words_per_line,
++									active_lines_per_frame, words_per_active_line, vd_std);
++		 	/* Do checking of video modes */
++			for (index = 0; index < NUM_PRESETS; index++, presets++) {
++				if ((rate_det == presets->rate_det) &&
++					(vd_std == presets->vd_std) &&
++					(lines_per_frame == presets->lines_per_frame) &&
++					(active_lines_per_frame == presets->active_lines_per_frame) &&
++					(words_per_active_line == presets->words_per_active_line) &&
++					(words_per_line == presets->words_per_line) &&
++					(interlaced != presets->progressive)) {
++						/* Detected video mode found in presets! */
++						qpreset->preset = presets->preset;
++						v4l2_dbg(1, debug, sd, "video mode found in preset table at %d\n", index);
++						break;
++				}
++			}
++			if (qpreset->preset == V4L2_DV_INVALID) {
++				v4l2_dbg(1, debug, sd, "video mode detection failed\n");
++				/* Could not detect a signal, so return the 'invalid' preset */
++				return 0;
++			}
++		}
++		else {
++			v4l2_dbg(1, debug, sd, "video standard not locked\n");
++		}
++	} while (0);
++
++	/* Update lines per frame and clocks per line info */
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d  detected preset:%d\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, 
++		 		rv, (qpreset) ? qpreset->preset : -1);
++	return rv;
++}
++
++/*********************************************************\
++ * gs2971_s_stream() - V4L2 decoder i/f handler for s_stream
++ * @sd: pointer to standard V4L2 sub-device structure
++ * @enable: streaming enable or disable
++ *
++ * Sets streaming to enable or disable, if possible.
++\*********************************************************/
++static int gs2971_s_stream(struct v4l2_subdev *sd, int enable)
++{
++	struct gs2971_device_s *gs2971_device = to_gs2971(sd);
++	int rv = 0;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p enable:%d\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd, enable);
++
++	if (gs2971_device == NULL) {
++		v4l2_err(sd, "   %s:%d error: invalid parameter given!\n", __FUNCTION__, __LINE__);
++		rv = -EINVAL;
++	}
++	else {
++		if (gs2971_device->streaming != enable) {
++			if (enable) {
++				/* Enable audio and video processing features */
++				gpio_set_value(gs2971_device->config->ioproc_en, 0x1);
++			} else {
++				/* Disable audio and video processing features */
++				gpio_set_value(gs2971_device->config->ioproc_en, 0x0);
++			}
++			gs2971_device->streaming = enable;
++		}
++	}
++
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++ * gs2971_mbus_fmt() - V4L2 decoder interface handler for try/s/g_mbus_fmt
++ * @sd: pointer to standard V4L2 sub-device structure
++ * @fmt: pointer to mediabus format structure
++ *
++ * Negotiate the image capture size and mediabus format.
++ * There is only one possible format, so this single function works for
++ * get, set and try.
++\*********************************************************/
++static int gs2971_mbus_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *fmt)
++{
++	struct gs2971_device_s *gs2971_device = to_gs2971(sd);
++	struct v4l2_dv_enum_preset e_preset;
++	int rv = 0;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p fmt:%p\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd, fmt);
++
++	if (!gs2971_device) {
++		rv = -EINVAL;
++	}
++	else {
++		/* Calculate height and width based on current standard */
++		rv = v4l_fill_dv_preset_info(gs2971_device->current_preset->preset, &e_preset);
++
++		if (rv == 0) {
++			fmt->width = e_preset.width;
++			fmt->height = e_preset.height;
++
++			/*
++			V4L2_MBUS_FMT_UYVY8_2X8   - YUV422 - UYVY422
++			V4L2_MBUS_FMT_YUYV8_1_5X8 - YUV420
++
++			V4L2_MBUS_FMT_YUYV8_2X8,  -  YUYV422 ->   pixelformat = V4L2_PIX_FMT_YUYV
++			*/
++
++			/* YUV 4:2:2 formats */
++			fmt->code = V4L2_MBUS_FMT_UYVY8_2X8;    /* Cb0, Y0, Cr0, Y1 */
++			// fmt->code = V4L2_MBUS_FMT_YUYV8_2X8;   /* Y0, Cb0, Y1, Cr0 */
++			// fmt->code = V4L2_MBUS_FMT_YVYU8_2X8;   /* Y0, Cr0, Y1, Cb0 */
++			// fmt->code = V4L2_MBUS_FMT_VYUY8_2X8;   /* Cr0, Y0, Cb0, Y1 */
++
++			// fmt->code = V4L2_MBUS_FMT_YUYV10_2X10;   /* Y0, Cb0, Y1, Cr0 */
++			// fmt->code = V4L2_MBUS_FMT_YVYU10_2X10;   /* Y0, Cr0, Y1, Cb0 */
++
++
++			fmt->field = gs2971_device->current_preset->scanmode;
++			fmt->colorspace = gs2971_device->current_preset->color_space;
++		}
++	}
++
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d  width:%d height:%d", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, 
++				rv, fmt->width, fmt->height);
++	return rv;
++}
++
++/*********************************************************\
++ * tvp7002_enum_mbus_fmt() - Enum supported mediabus formats
++ * @sd: pointer to standard V4L2 sub-device structure
++ * @index: format index
++ * @code: pointer to mediabus format
++ *
++ * Enumerate supported mediabus formats.
++\*********************************************************/
++static int gs2971_enum_mbus_fmt(struct v4l2_subdev *sd, unsigned index, enum v4l2_mbus_pixelcode *code)
++{
++	int rv = -EINVAL;
++
++	v4l2_dbg(1, debug, sd, "[%d] ++%s:%d sd:%p index:%d code:%p\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, sd, index, code);
++
++	/* Check requested format index is within range */
++	if (code && (index == 0)) {
++		*code = V4L2_MBUS_FMT_YUYV10_1X20;
++	}
++
++	v4l2_dbg(1, debug, sd, "[%d] --%s:%d rv:%d\n", DEV_NO(to_gs2971(sd)), __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_proc_show(struct seq_file *seq, void *offset)
++{
++	struct gs2971_device_s *gs2971_device = seq->private;
++
++	if (gs2971_device) {
++		struct spi_device *spi = gs2971_get_spi(gs2971_device);
++		struct gs2971_platform_config_s *config = gs2971_device->config;
++		u16 val = 0;
++		u16 lines_per_frame;
++		u16 active_lines_per_frame;
++		u16 words_per_active_line;
++		u16 words_per_line;
++		u16 interlaced;
++		u16 vd_std;
++		u16 rate_det;
++		u16 lock;
++	
++		seq_printf(seq, "%s[%d] \n", DRIVER_NAME, gs2971_device->dev_no);
++		seq_printf(seq, " setup: \n");
++		seq_printf(seq, "  automode         = %d\n", gs2971_device->automode);
++		if (gs2971_device->automode == 0) {
++			seq_printf(seq, "  rate_sel         = %d - %s \n", gs2971_device->rate_sel,
++				(gs2971_device->rate_sel == GS2971_HD) ? "HD" :
++				(gs2971_device->rate_sel == GS2971_3G) ? "3G" : "SD");
++		}
++		seq_printf(seq, "  streaming        = %d\n", gs2971_device->streaming);
++		seq_printf(seq, "  tim861_enabled   = %d\n", gs2971_device->tim861_enabled);
++		seq_printf(seq, " GPIO setup: \n");
++		seq_printf(seq, "  sw_en            = %d - %s\n", gpio_get_value(config->sw_en), 
++			gpio_get_value(config->sw_en) ? "Switch-line locking enabled" : "Switch-line locking disabled");
++
++		seq_printf(seq, "  ioproc_en/dis    = %d - %s\n", gpio_get_value(config->ioproc_en), 
++			gpio_get_value(config->ioproc_en) ? "I/O processing enabled" : "I/O processing disabled");
++
++		gs297x_read_register(spi, GS2971_IOPROC_1_ADDR, &val);
++		val |= GS2971_IOPROC_1_TIM_861_PIN_DIS_MASK;
++		seq_printf(seq, "  tim_861          = %d - %s - %s\n", gpio_get_value(config->tim_861),
++			gpio_get_value(config->tim_861) ? "CEA TIM-861 enabled" : "CEA TIM-861 disabled", 
++			(val & GS2971_IOPROC_1_TIM_861_PIN_DIS_MASK) ? "pin control disabled" : "pin control enabled");
++		seq_printf(seq, "  /smpte_bypass    = %d - %s\n", gpio_get_value(config->smpte_bypass),
++			gpio_get_value(config->smpte_bypass) ? "SMPTE processing enabled" : "SMPTE processing disabled");
++		seq_printf(seq, " regs: \n");
++		gs297x_read_register(spi, GS2971_IOPROC_1_ADDR, &val);
++		seq_printf(seq, "  IOPROC_1_ADDR   = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_IOPROC_2_ADDR, &val);
++		seq_printf(seq, "  IOPROC_2_ADDR   = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_ERROR_STAT_1_ADDR, &val);
++		seq_printf(seq, "  ERROR_STAT_1    = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_ERROR_STAT_2_ADDR, &val);
++		seq_printf(seq, "  ERROR_STAT_2    = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_DATA_FORMAT_DS1_ADDR, &val);
++		vd_std  = (val & GS2971_DATA_FORMAT_DS1_VD_STD_DS1_MASK) >> GS2971_DATA_FORMAT_DS1_VD_STD_DS1_SHIFT;
++		seq_printf(seq, "  DATA_FORMAT_DS1 = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_DATA_FORMAT_DS2_ADDR, &val);
++		seq_printf(seq, "  DATA_FORMAT_DS2 = 0x%04x\n", val);
++
++		gs297x_read_register(spi, GS2971_RASTER_STRUC_1_ADDR, &val);
++		words_per_active_line = val & GS2971_RASTER_STRUC_1_WORDS_PER_ACTLINE_MASK;
++		seq_printf(seq, "  RASTER_STRUC_1  = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_RASTER_STRUC_2_ADDR, &val);
++		words_per_line = val & GS2971_RASTER_STRUC_2_WORDS_PER_LINE_MASK;
++		seq_printf(seq, "  RASTER_STRUC_2  = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_RASTER_STRUC_3_ADDR, &val);
++		lines_per_frame = val & GS2971_RASTER_STRUC_3_LINES_PER_FRAME_MASK;
++		seq_printf(seq, "  RASTER_STRUC_3  = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2971_RASTER_STRUC_4_ADDR, &val);
++		seq_printf(seq, "  RASTER_STRUC_4  = 0x%04x\n", val);
++
++		lock = (val & GS2971_RASTER_STRUC_4_STD_LOCK_MASK) >> GS2971_RASTER_STRUC_4_STD_LOCK_SHIFT;
++		interlaced = (val & GS2971_RASTER_STRUC_4_INT_NOT_PROG_MASK) >> GS2971_RASTER_STRUC_4_INT_NOT_PROG_SHIFT;
++		active_lines_per_frame = (val & GS2971_RASTER_STRUC_4_ACTLINE_PER_FIELD_MASK);
++		rate_det = (val & GS2971_RASTER_STRUC_4_RATE_SEL_READBACK_MASK) >> GS2971_RASTER_STRUC_4_RATE_SEL_READBACK_SHIFT;
++
++		gs297x_read_register(spi, GS2971_RASTER_STRUC_4_ADDR, &val);
++		seq_printf(seq, " video params detected: \n"
++						"  standard lock          = %d\n"
++						"  interlaced             = %d\n"
++						"  vd_std                 = 0x%02x\n",
++						lock,
++						interlaced,
++						vd_std);
++		seq_printf(seq, "  lines per frame        = %d\n", lines_per_frame);
++		seq_printf(seq, "  words per frame        = %d\n", words_per_line);
++		seq_printf(seq, "  active words per line  = %d\n", words_per_active_line);
++		seq_printf(seq, "  active lines per frame = %d\n", active_lines_per_frame);
++	}
++	else {
++		seq_printf(seq, "no %s device found\n", DRIVER_NAME);
++	}
++	seq_printf(seq, "-----\n");
++
++	return 0;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_proc_open(struct inode *inode, struct file *file)
++{
++	struct gs2971_device_s *gs2971_device = PDE(inode)->data;
++
++	if (!try_module_get(THIS_MODULE))
++		return -ENODEV;
++
++	return single_open(file, gs2971_proc_show, gs2971_device);
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_proc_release(struct inode *inode, struct file *file)
++{
++	int res = single_release(inode, file);
++	module_put(THIS_MODULE);
++	return res;
++}
++
++/*********************************************************\
++\*********************************************************/
++static const struct file_operations gs2971_proc_fops = {
++	.open		= gs2971_proc_open,
++	.read		= seq_read,
++	.llseek		= seq_lseek,
++	.release	= gs2971_proc_release,
++};
++
++/*********************************************************\
++\*********************************************************/
++static void gs2971_proc_add_device(struct gs2971_device_s *gs2971_device)
++{
++	if (gs2971_device->dev_no == 0) {
++		proc_create_data("driver/gs2971_0", 0, NULL, &gs2971_proc_fops, gs2971_device);
++	}
++	else {
++		proc_create_data("driver/gs2971_1", 0, NULL, &gs2971_proc_fops, gs2971_device);
++	}
++}
++
++/*********************************************************\
++\*********************************************************/
++static void gs2971_proc_del_device(struct gs2971_device_s *gs2971_device)
++{
++	if (gs2971_device->dev_no == 0) {
++		remove_proc_entry("driver/gs2971_0", NULL);
++	}
++	else {
++		remove_proc_entry("driver/gs2971_1", NULL);
++	}
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_probe(struct spi_device *spi)
++{
++	struct gs2971_spidata_s         *spidata = NULL;
++	struct gs2971_device_s          *gs2971_device = NULL;
++	struct gs2971_platform_config_s *config = (struct gs2971_platform_config_s *) spi->dev.platform_data;
++	struct v4l2_subdev              *sd = NULL;
++	int dev_idx = -1;
++	int      rv = 0;
++
++	dbg(2, debug, " ++%s:%d spi:%p\n", __FUNCTION__, __LINE__, spi);
++
++	if (!config) {
++		v4l2_err(sd,  "   %s:%d no platform data supplied!!! ", __FUNCTION__, __LINE__);
++		return -EINVAL;
++	}
++	dev_idx = config->dev_idx;
++	dbg(2, debug, "   %s:%d dev_idx:%d \n", __FUNCTION__, __LINE__, dev_idx);
++	dbg(2, debug, "   %s:%d config->smpte_bypass:%d \n", __FUNCTION__, __LINE__, config->smpte_bypass);
++	dbg(2, debug, "   %s:%d config->sw_en:%d \n", __FUNCTION__, __LINE__, config->sw_en);
++
++	/* Allocate driver data */
++	spidata = kzalloc(sizeof(*spidata), GFP_KERNEL);
++	if (!spidata) {
++		v4l2_err(sd,  "   %s:%d -ENOMEM \n", __FUNCTION__, __LINE__);
++		return -ENOMEM;
++	}
++	if (dev_idx < 0) {
++		v4l2_err(sd,  "   %s:%d -EINVAL \n", __FUNCTION__, __LINE__);
++		return -EINVAL;
++	}
++
++	/* Initialize the driver data */
++	spidata->spi = spi;
++
++	gs2971_device = &gs2971_devices[dev_idx];
++	gs2971_device->spidata = spidata;
++	gs2971_device->config = config;
++	gs2971_device->current_preset = &gs2971_presets[0];
++	gs2971_device->dev_no = dev_idx;
++
++	sd = &gs2971_device->sd;
++
++	v4l2_spi_subdev_init( sd, spi, &gs2971_ops );
++
++	dbg(2, debug, "   %s:%d rv:%d \n", __FUNCTION__, __LINE__, rv);
++
++	if ( 0 == rv ) {
++		// /SMPTE_BYPASS=1
++		/*
++		  GS2971 ????
++		  in automatic mode (AUTO/MAN=1)  SMPTE_BYPASS is set as an output driven by GS2971 chip
++		   which conflicts with below config suggested by Alberto
++		   "We use this PIN only in input mode. And for our configuration we need always HIGH level."
++		 */
++		#warning GS2971 SMPTE_BYPASS gpio config conflict
++#if 0
++		gpio_request(config->smpte_bypass, "/SMPTE_BYPASS");
++		gpio_direction_output(config->smpte_bypass, 0x1);
++#endif
++		dbg(2, debug, "   %s:%d smpte_bypass:%d val:%d \n", __FUNCTION__, __LINE__, config->smpte_bypass, gpio_get_value(config->smpte_bypass));
++
++		// IOPROC_EN/DIS=1
++		// gpio_request(config->ioproc_en, "IOPROC_EN/DIS");
++		// gpio_direction_output(config->ioproc_en, 0x1);
++		dbg(2, debug, "   %s:%d ioproc_en:%d val:%d \n", __FUNCTION__, __LINE__, config->ioproc_en, gpio_get_value(config->ioproc_en));
++
++		/* TIM_861=1 set over registers and not pin */
++#if 0
++		gpio_request(config->tim_861, "TIM_861");
++		gpio_direction_output(config->tim_861, 0x0);
++#endif
++		dbg(2, debug, "   %s:%d tim_861:%d val:%d \n", __FUNCTION__, __LINE__, config->tim_861, gpio_get_value(config->tim_861));
++
++		// SW_EN=1
++		gpio_request(config->sw_en, "SW_EN");
++		gpio_direction_output(config->sw_en, 0x1);
++		dbg(2, debug, "   %s:%d sw_en:%d val:%d \n", __FUNCTION__, __LINE__, config->sw_en, gpio_get_value(config->sw_en));
++
++		rv = gs2971_initialize(sd);
++		if (rv == 0)
++		{
++			gs2971_proc_add_device(gs2971_device);
++		}
++	}
++	else {
++		dbg(2, debug, "   %s:%d error: v4l2_spi_subdev_init rv:%d\n", __FUNCTION__, __LINE__, rv);
++	}
++
++	dbg_info("   GS2971[%d] init status:%d \n", dev_idx, rv);
++
++	dbg(2, debug, " --%s:%d rv:%d \n", __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2971_remove(struct spi_device *spi)
++{
++	struct v4l2_subdev *sd = spi_get_drvdata(spi);
++	struct gs2971_device_s *gs2971_device  = NULL;
++
++	dbg(2, debug, " ++%s:%d spi:%p \n", __FUNCTION__, __LINE__, spi);
++
++	gs2971_device = to_gs2971( sd );
++
++	dbg(2, debug, "   %s:%d removing device dev_idx:%d \n", __FUNCTION__, __LINE__, DEV_NO(gs2971_device));
++
++	gs2971_proc_del_device(gs2971_device);
++	gs2971_deinitialize(sd);
++
++	kfree( gs2971_device->spidata );
++	gs2971_device->spidata = NULL;
++	gs2971_device->config = NULL;
++
++	v4l2_device_unregister_subdev(sd);
++
++	dbg(2, debug, " --%s:%d \n", __FUNCTION__, __LINE__);
++
++	return 0;
++}
++
++/*********************************************************\
++\*********************************************************/
++static struct spi_driver gs2971_spi = {
++	.driver = {
++		.name =   DRIVER_NAME,
++		.owner =  THIS_MODULE,
++	},
++	.probe =  gs2971_probe,
++	.remove = __devexit_p(gs2971_remove),
++
++	/* NOTE:  suspend/resume methods are not necessary here.
++	 * We don't do anything except pass the requests to/from
++	 * the underlying controller.  The refrigerator handles
++	 * most issues; the controller driver handles the rest.
++	 */
++};
++
++
++/*********************************************************\
++\*********************************************************/
++static int __init gs2971_init(void)
++{
++	int status;
++	dbg(2, debug, " ++%s:%d \n", __FUNCTION__, __LINE__ );
++
++	status = spi_register_driver(&gs2971_spi);
++	dbg(2, debug, " --%s:%d status:%d \n", __FUNCTION__, __LINE__, status);
++	return status;
++}
++
++/*********************************************************\
++\*********************************************************/
++static void __exit gs2971_exit(void)
++{
++	dbg(2, debug, " ++%s:%d \n", __FUNCTION__, __LINE__ );
++	spi_unregister_driver(&gs2971_spi);
++	dbg(2, debug, " --%s:%d \n", __FUNCTION__, __LINE__ );
++}
++
++module_init(gs2971_init);
++module_exit(gs2971_exit);
++MODULE_LICENSE("GPL");
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2971_regs.h b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2971_regs.h
+new file mode 100644
+index 0000000..d80c642
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2971_regs.h
+@@ -0,0 +1,132 @@
++#ifndef _GS2971_REGS_H
++#define _GS2971_REGS_H
++
++
++#ifdef __KERNEL__
++#include <linux/spi/spi.h>
++#include <linux/device.h>
++#include <linux/videodev.h>
++#include <linux/videodev2.h>
++#endif				/* __KERNEL__ */
++
++
++#define GS2971_NUM_DEVICES  2
++
++enum gs2971_rate_det_e {
++	GS2971_HD   = 0,
++	GS2971_SD_1 = 1,
++	GS2971_3G   = 2,
++	GS2971_SD_2 = 3
++};
++
++/* Video Core Configuration and Status Registers Addresses */
++#define GS2971_IOPROC_1_ADDR				0x000
++#define GS2971_IOPROC_2_ADDR				0x001
++#define GS2971_ERROR_STAT_1_ADDR			0x002
++#define GS2971_ERROR_STAT_2_ADDR			0x003
++#define GS2971_EDH_FLAG_IN_ADDR				0x004
++#define GS2971_EDH_FLAG_OUT_ADDR			0x005
++#define GS2971_DATA_FORMAT_DS1_ADDR			0x006
++#define GS2971_DATA_FORMAT_DS2_ADDR			0x007
++#define GS2971_IO_CONFIG_ADDR				0x008
++#define GS2971_IO_CONFIG2_ADDR				0x009
++#define GS2971_ANC_CONTROL_ADDR				0x00a
++#define GS2971_ANC_LINE_A_ADDR				0x00b
++#define GS2971_ANC_LINE_B_ADDR				0x00c
++#define GS2971_ANC_TYPE_1_AP1_ADDR			0x00f
++#define GS2971_ANC_TYPE_2_AP1_ADDR			0x010
++#define GS2971_ANC_TYPE_3_AP1_ADDR			0x011
++#define GS2971_ANC_TYPE_4_AP1_ADDR			0x012
++#define GS2971_ANC_TYPE_5_AP1_ADDR			0x013
++#define GS2971_ANC_TYPE_1_AP2_ADDR			0x014
++#define GS2971_ANC_TYPE_2_AP2_ADDR			0x015
++#define GS2971_ANC_TYPE_3_AP2_ADDR			0x016
++#define GS2971_ANC_TYPE_4_AP2_ADDR			0x017
++#define GS2971_ANC_TYPE_5_AP2_ADDR			0x018
++#define GS2971_VIDEO_FORMAT_352_A_1_ADDR	0x019
++#define GS2971_VIDEO_FORMAT_352_B_1_ADDR	0x01a
++#define GS2971_VIDEO_FORMAT_352_B_2_ADDR	0x01b
++#define GS2971_VIDEO_FORMAT_352_A_2_ADDR	0x01c
++#define GS2971_VIDEO_FORMAT_352_INS_A_ADDR	0x01d
++#define GS2971_VIDEO_FORMAT_352_INS_B_ADDR	0x01e
++#define GS2971_RASTER_STRUC_1_ADDR			0x01f
++#define GS2971_RASTER_STRUC_2_ADDR			0x020
++#define GS2971_RASTER_STRUC_3_ADDR			0x021
++#define GS2971_RASTER_STRUC_4_ADDR			0x022
++
++#define GS2971_FLYWHEEL_STATUS_ADDR			0x023
++#define GS2971_RATE_SEL_ADDR				0x024
++#define GS2971_TIM_861_FORMAT_ADDR			0x025
++#define GS2971_TIM_861_CFG_ADDR				0x026
++
++#define GS2971_ERROR_MASK_1_ADDR			0x037
++#define GS2971_ERROR_MASK_2_ADDR			0x038
++#define GS2971_ACGEN_CTRL_ADDR				0x039
++#define GS2971_CLK_GEN_ADDR					0x06c
++#define GS2971_IO_DRIVE_STRENGTH_ADDR		0x06d
++#define GS2971_EQ_BYPASS_ADDR				0x073
++
++/* Video Core Configuration and Status Registers Mask */
++#define GS2971_IOPROC_1_TIM_861_PIN_DIS_MASK	0x0080
++#define GS2971_IOPROC_1_TIM_861_PIN_DIS_SHIFT	7
++#define GS2971_IOPROC_1_TIMING_861_MASK			0x0040
++#define GS2971_IOPROC_1_TIMING_861_SHIFT		6
++
++
++#define GS2971_ERROR_STAT_1_EAV_ERR_DS1_MASK	0x0001
++#define GS2971_ERROR_STAT_1_SAV_ERR_DS1_MASK	0x0002
++#define GS2971_ERROR_STAT_1_LNUM_ERR_DS1_MASK	0x0004
++#define GS2971_ERROR_STAT_1_YCRC_ERR_DS1_MASK	0x0008
++#define GS2971_ERROR_STAT_1_CCRC_ERR_DS1_MASK	0x0010
++#define GS2971_ERROR_STAT_1_YCS_ERR_DS1_MASK	0x0020
++#define GS2971_ERROR_STAT_1_CCS_ERR_DS1_MASK	0x0040
++/* reserved 0x0080 */
++#define GS2971_ERROR_STAT_1_AP_CRC_ERR_MASK	    0x0100
++#define GS2971_ERROR_STAT_1_FF_CRC_ERR_MASK		0x0200
++#define GS2971_ERROR_STAT_1_VD_STD_ERR_DS1_MASK	0x0400
++/* reserved 0xfc00 */
++
++#define GS2971_DATA_FORMAT_DS1_YDATA_FORMAT_MASK	0x000f
++#define GS2971_DATA_FORMAT_DS1_YDATA_FORMAT_SHIFT	0
++
++#define GS2971_DATA_FORMAT_DS1_CDATA_FORMAT_MASK	0x00f0
++#define GS2971_DATA_FORMAT_DS1_CDATA_FORMAT_SHIFT	4
++
++/* Detected Video Standard for
++   3G Level B Data Stream 1, 3G Level A, HD and SD inputs. */
++#define GS2971_DATA_FORMAT_DS1_VD_STD_DS1_MASK		0x3f00
++#define GS2971_DATA_FORMAT_DS1_VD_STD_DS1_SHIFT		8
++
++#define GS2971_DATA_FORMAT_DS1_AP_CRC_V_MASK		0x4000
++#define GS2971_DATA_FORMAT_DS1_AP_CRC_V_SHIFT		14
++
++#define GS2971_DATA_FORMAT_DS1_FF_CRC_V_MASK		0x8000
++#define GS2971_DATA_FORMAT_DS1_FF_CRC_V_SHIFT		15
++
++#define GS2971_DATA_IO_CONFIG2_STAT3_CONFIG_MASK	0x001F
++#define GS2971_DATA_IO_CONFIG2_STAT3_CONFIG_SHIFT   0
++
++#define GS2971_RASTER_STRUC_1_WORDS_PER_ACTLINE_MASK	0x3fff  /* Words per active line */
++#define GS2971_RASTER_STRUC_1_WORDS_PER_ACTLINE_SHIFT	0
++#define GS2971_RASTER_STRUC_2_WORDS_PER_LINE_MASK		0x3fff  /* Total Words per line */
++#define GS2971_RASTER_STRUC_2_WORDS_PER_LINE_SHIFT		0
++#define GS2971_RASTER_STRUC_3_LINES_PER_FRAME_MASK		0x3fff  /* Total Words per line */
++#define GS2971_RASTER_STRUC_3_LINES_PER_FRAME_SHIFT		0
++
++#define GS2971_RASTER_STRUC_4_RATE_SEL_READBACK_MASK	0x4000     /* Read back detected data rate: 0=HD, 1,3=SD, 2=3G */
++#define GS2971_RASTER_STRUC_4_RATE_SEL_READBACK_SHIFT	14
++#define GS2971_RASTER_STRUC_4_M_MASK					0x2000     /* Specifies detected M value 0=1.0000, 1=1.0001 */
++#define GS2971_RASTER_STRUC_4_M_SHIFT					13
++#define GS2971_RASTER_STRUC_4_STD_LOCK_MASK				0x1000     /* Video standard lock */
++#define GS2971_RASTER_STRUC_4_STD_LOCK_SHIFT			12
++#define GS2971_RASTER_STRUC_4_INT_NOT_PROG_MASK			0x0800     /* Interlace or progressive */
++#define GS2971_RASTER_STRUC_4_INT_NOT_PROG_SHIFT		11
++#define GS2971_RASTER_STRUC_4_ACTLINE_PER_FIELD_MASK	0x7ff      /* Active lines per frame */
++#define GS2971_RASTER_STRUC_4_ACTLINE_PER_FIELD_SHIFT	0
++
++#define GS2971_RATE_SEL_AUTO_NOT_MAN_MASK				0x0004     /* 1 - Detect rate automatically, 0 - program manually */
++#define GS2971_RATE_SEL_AUTO_NOT_MAN_SHIFT				2
++#define GS2971_RATE_SEL_TOP_MASK				        0x0003     /* Programmable rate select: 0=HD, 1,3=SD, 2=3G */
++#define GS2971_RATE_SEL_TOP_SHIFT						0
++
++#endif /* _GS2971_REGS_H */
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2972.c b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2972.c
+new file mode 100644
+index 0000000..f07043e
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2972.c
+@@ -0,0 +1,472 @@
++//#define DEBUG
++#include <linux/ctype.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/ioctl.h>
++#include <linux/fs.h>
++#include <linux/device.h>
++#include <linux/list.h>
++#include <linux/errno.h>
++#include <linux/mutex.h>
++#include <linux/slab.h>
++#include <linux/gpio.h>
++
++#include <linux/spi/spi.h>
++#include <linux/device.h>
++#include <linux/cdev.h>
++#include <linux/proc_fs.h>
++#include <linux/seq_file.h>
++
++//#include <asm/arch/video_evm.h>
++#include <asm/uaccess.h>
++
++#include <media/v4l2-ioctl.h>
++#include <linux/videodev2.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-chip-ident.h>
++#include <asm/uaccess.h>
++
++#include <media/gs2972.h>
++#include "gs2972_regs.h"
++#include "gs297x_spi.h"
++
++
++#define GS2972_SPI_TRANSFER_MAX 1024
++
++#define DRIVER_NAME     "gs2972"
++
++#define NUM_PRESETS		ARRAY_SIZE(gs2972_presets)
++
++#define GPIO(port, pin) (((port) << 5) + (pin))
++
++#define dbg(level, debug, fmt, arg...)                      \
++	do {                                                    \
++		if (debug >= (level))                               \
++			printk(KERN_DEBUG DRIVER_NAME": " fmt , ## arg); \
++	} while (0)
++
++#define dbg_info(fmt, arg...)                  				\
++	do {                                                    \
++		printk(KERN_INFO DRIVER_NAME": " fmt , ## arg); 			\
++	} while (0)
++
++#define dbg_err(fmt, arg...)                  				\
++	do {                                                    \
++		printk(KERN_ERR DRIVER_NAME": " fmt , ## arg); 			\
++	} while (0)
++
++/* Debug functions */
++static int debug = 0;
++module_param(debug, int, 0644);
++MODULE_PARM_DESC(debug, "Debug level (0-2)");
++
++/* Structures Definitions */
++struct gs2972_spidata_s {
++	struct spi_device *spi;
++};
++
++struct gs2972_device_s {
++	struct gs2972_spidata_s                 *spidata;
++	struct gs2972_platform_config_s         *config;
++	int                                      streaming;
++	int                                      dev_no;
++};
++
++static struct gs2972_device_s gs2972_devices[GS2972_NUM_DEVICES] = {
++	{
++		.spidata = NULL,
++	},
++	{
++		.spidata = NULL,
++	},
++};
++
++/*********************************************************\
++\*********************************************************/
++static struct spi_device *gs2972_get_spi( struct gs2972_device_s *gs2972_device )
++{
++	 if ((gs2972_device == NULL) || (gs2972_device->spidata == NULL)) {
++			return NULL;
++	 }
++
++	 return gs2972_device->spidata->spi;
++
++}
++
++/*********************************************************\
++\*********************************************************/
++static inline struct gs2972_device_s *to_gs2972(struct spi_device *spi)
++{
++	struct gs2972_device_s *gs2972_device = NULL;
++	if (spi) {
++		int i = 0;
++		for (i = 0; i < GS2972_NUM_DEVICES; i++) {
++			if (gs2972_get_spi(&gs2972_devices[i]) == spi) {
++				gs2972_device = &gs2972_devices[i];
++			}
++		}
++	}
++	return gs2972_device;
++}
++
++/*********************************************************\
++\*********************************************************/
++static struct device *gs2972_get_dev( struct gs2972_device_s *gs2972_device )
++{
++	 if ((gs2972_device == NULL) || (gs2972_device->spidata == NULL) || (gs2972_device->spidata->spi == NULL)) {
++			return NULL;
++	 }
++
++	 return &gs2972_device->spidata->spi->dev;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_dump_regs(struct gs2972_device_s *device)
++{
++	struct spi_device *spi = gs2972_get_spi(device);
++
++	dbg(2, debug, " ++%s:%d device:%p spi:%p\n", __FUNCTION__, __LINE__, device, spi);
++
++	if (device && spi) {
++		u16 val = 0;
++
++		gs297x_read_register(spi, GS2972_IOPROC_ADDR, &val);
++		dbg_info("   GS2972[%d] IOPROC_ADDR     = 0x%04x\n", device->config->dev_idx, val);
++		gs297x_read_register(spi, GS2972_ERROR_STAT_ADDR, &val);
++		dbg_info("   GS2972[%d] ERROR_STAT      = 0x%04x\n", device->config->dev_idx, val);
++		gs297x_read_register(spi, GS2972_DATA_FORMAT_ADDR, &val);
++		dbg_info("   GS2972[%d] DATA_FORMAT     = 0x%04x\n", device->config->dev_idx, val);
++	}
++	dbg(2, debug, " --%s:%d \n", __FUNCTION__, __LINE__);
++	return 0;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_initialize(struct gs2972_device_s *gs2972_device)
++{
++	int rv = -EINVAL;
++
++	dbg(2, debug, " ++%s:%d gs2972_device:%p\n", __FUNCTION__, __LINE__, gs2972_device);
++
++	if (gs2972_device) {
++		struct spi_device *spi = gs2972_get_spi(gs2972_device);
++		u16 val = 0;
++
++		gs2972_device->streaming = 0;
++		if (debug) {
++			gs2972_dump_regs(gs2972_device);
++			gs297x_read_register(spi, GS2972_DATA_FORMAT_ADDR, &val);
++			dbg_info("video params detected: \n"
++						" standard lock          = %d\n"
++						" vertical lock          = %d\n"
++						" horizontal lock        = %d\n"
++						" interlaced             = %d\n"
++						" vd_std                 = 0x%02x",
++						((val & GS2972_DATA_FORMAT_STD_LOCK_MASK) >> GS2972_DATA_FORMAT_STD_LOCK_SHIFT),
++						((val & GS2972_DATA_FORMAT_V_LOCK_MASK) >> GS2972_DATA_FORMAT_V_LOCK_SHIFT),
++						((val & GS2972_DATA_FORMAT_H_LOCK_MASK) >> GS2972_DATA_FORMAT_H_LOCK_SHIFT),
++						((val & GS2972_DATA_FORMAT_INT_NOT_PROG_MASK) >> GS2972_DATA_FORMAT_INT_NOT_PROG_SHIFT),
++						((val & GS2972_DATA_FORMAT_VD_STD_MASK) >> GS2972_DATA_FORMAT_VD_STD_SHIFT));
++		}
++
++		rv = 0;
++	}
++	try_module_get(THIS_MODULE);
++
++	dbg(2, debug, " --%s:%d rv:%d \n", __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_deinitialize(struct gs2972_device_s *gs2972_device)
++{
++	// struct gs2972_device_s *gs2972_device = to_gs2972(sd);
++	// struct device *dev;
++
++	dbg(2, debug, " ++%s:%d gs2972_device:%p \n", __FUNCTION__, __LINE__, gs2972_device);
++
++	// dev = gs2972_get_dev( gs2972_device );
++
++	module_put(THIS_MODULE);
++
++	dbg(2, debug, " --%s:%d \n", __FUNCTION__, __LINE__);
++
++	return 0;
++}
++
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_proc_show(struct seq_file *seq, void *offset)
++{
++	struct gs2972_device_s *gs2972_device = seq->private;
++
++	if (gs2972_device) {
++		struct spi_device *spi = gs2972_get_spi(gs2972_device);
++		struct gs2972_platform_config_s *config = gs2972_device->config;
++		u16 val = 0;
++	
++		seq_printf(seq, "%s[%d] \n", DRIVER_NAME, gs2972_device->dev_no);
++		seq_printf(seq, " GPIO setup: \n");
++		seq_printf(seq, "  ioproc_en/dis    = %d - %s\n", gpio_get_value(config->ioproc_en), 
++			gpio_get_value(config->ioproc_en) ? "I/O processing enabled" : "I/O processing disabled");
++		seq_printf(seq, "  tim_861          = %d - %s\n", gpio_get_value(config->tim_861),
++			gpio_get_value(config->tim_861) ? "CEA TIM-861 enabled" : "CEA TIM-861 disabled");
++		seq_printf(seq, "  /smpte_bypass    = %d - %s\n", gpio_get_value(config->smpte_bypass),
++			gpio_get_value(config->smpte_bypass) ? "SMPTE processing enabled" : "SMPTE processing disabled");
++		seq_printf(seq, "  rsel 0, rsel 1   = %d, %d - %s\n", gpio_get_value(config->rate_sel0), gpio_get_value(config->rate_sel1),
++			gpio_get_value(config->rate_sel0) ? "SD" : (gpio_get_value(config->rate_sel1) ? "3G" : "HD"));
++
++		seq_printf(seq, " regs: \n");
++		gs297x_read_register(spi, GS2972_IOPROC_ADDR, &val);
++		seq_printf(seq, "  IOPROC          = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2972_ERROR_STAT_ADDR, &val);
++		seq_printf(seq, "  ERROR_STAT      = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2972_DATA_FORMAT_ADDR, &val);
++		seq_printf(seq, "  DATA_FORMAT     = 0x%04x\n", val);
++
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_1_ADDR, &val);
++		seq_printf(seq, "  RASTER_STRUC_1  = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_2_ADDR, &val);
++		seq_printf(seq, "  RASTER_STRUC_2  = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_3_ADDR, &val);
++		seq_printf(seq, "  RASTER_STRUC_3  = 0x%04x\n", val);
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_4_ADDR, &val);
++		seq_printf(seq, "  RASTER_STRUC_4  = 0x%04x\n", val);
++
++		gs297x_read_register(spi, GS2972_DATA_FORMAT_ADDR, &val);
++		seq_printf(seq, " video params detected: \n"
++						"  standard lock          = %d\n"
++						"  vertical lock          = %d\n"
++						"  horizontal lock        = %d\n"
++						"  interlaced             = %d\n"
++						"  vd_std                 = 0x%02x\n",
++						((val & GS2972_DATA_FORMAT_STD_LOCK_MASK) >> GS2972_DATA_FORMAT_STD_LOCK_SHIFT),
++						((val & GS2972_DATA_FORMAT_V_LOCK_MASK) >> GS2972_DATA_FORMAT_V_LOCK_SHIFT),
++						((val & GS2972_DATA_FORMAT_H_LOCK_MASK) >> GS2972_DATA_FORMAT_H_LOCK_SHIFT),
++						((val & GS2972_DATA_FORMAT_INT_NOT_PROG_MASK) >> GS2972_DATA_FORMAT_INT_NOT_PROG_SHIFT),
++						((val & GS2972_DATA_FORMAT_VD_STD_MASK) >> GS2972_DATA_FORMAT_VD_STD_SHIFT));
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_1_ADDR, &val);
++		seq_printf(seq, "  lines per frame        = %d\n", val);
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_2_ADDR, &val);
++		seq_printf(seq, "  words per frame        = %d\n", val);
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_3_ADDR, &val);
++		seq_printf(seq, "  active words per line  = %d\n", val);
++		gs297x_read_register(spi, GS2972_RASTER_STRUC_4_ADDR, &val);
++		seq_printf(seq, "  active lines per frame = %d\n", val);
++	}
++	else {
++		seq_printf(seq, "no %s device found\n", DRIVER_NAME);
++	}
++	seq_printf(seq, "-----\n");
++
++	return 0;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_proc_open(struct inode *inode, struct file *file)
++{
++	struct gs2972_device_s *gs2972_device = PDE(inode)->data;
++
++	if (!try_module_get(THIS_MODULE))
++		return -ENODEV;
++
++	return single_open(file, gs2972_proc_show, gs2972_device);
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_proc_release(struct inode *inode, struct file *file)
++{
++	int res = single_release(inode, file);
++	module_put(THIS_MODULE);
++	return res;
++}
++
++/*********************************************************\
++\*********************************************************/
++static const struct file_operations gs2972_proc_fops = {
++	.open		= gs2972_proc_open,
++	.read		= seq_read,
++	.llseek		= seq_lseek,
++	.release	= gs2972_proc_release,
++};
++
++/*********************************************************\
++\*********************************************************/
++static void gs2972_proc_add_device(struct gs2972_device_s *gs2972_device)
++{
++	if (gs2972_device->dev_no == 0) {
++		proc_create_data("driver/gs2972_0", 0, NULL, &gs2972_proc_fops, gs2972_device);
++	}
++	else {
++		proc_create_data("driver/gs2972_1", 0, NULL, &gs2972_proc_fops, gs2972_device);
++	}
++}
++
++/*********************************************************\
++\*********************************************************/
++static void gs2972_proc_del_device(struct gs2972_device_s *gs2972_device)
++{
++	if (gs2972_device->dev_no == 0) {
++		remove_proc_entry("driver/gs2972_0", NULL);
++	}
++	else {
++		remove_proc_entry("driver/gs2972_1", NULL);
++	}
++}
++
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_probe(struct spi_device *spi)
++{
++	struct gs2972_spidata_s         *spidata = NULL;
++	struct gs2972_device_s          *gs2972_device = NULL;
++	struct gs2972_platform_config_s *config = (struct gs2972_platform_config_s *) spi->dev.platform_data;
++	int dev_idx = -1;
++	int      rv = 0;
++
++	dbg(2, debug, " ++%s:%d spi:%p\n", __FUNCTION__, __LINE__, spi);
++
++	if (!config) {
++		dbg_err( "   %s:%d no platform data supplied!!! ", __FUNCTION__, __LINE__);
++		return -EINVAL;
++	}
++	dev_idx = config->dev_idx;
++	dbg(2, debug, "   %s:%d dev_idx:%d \n", __FUNCTION__, __LINE__, dev_idx);
++	dbg(2, debug, "   %s:%d config->smpte_bypass:%d \n", __FUNCTION__, __LINE__, config->smpte_bypass);
++	dbg(2, debug, "   %s:%d config->rate_sel1:%d \n", __FUNCTION__, __LINE__, config->rate_sel1);
++	dbg(2, debug, "   %s:%d config->rate_sel0:%d \n", __FUNCTION__, __LINE__, config->rate_sel0);
++	dbg(2, debug, "   %s:%d config->ioproc_en:%d \n", __FUNCTION__, __LINE__, config->ioproc_en);
++
++	/* Allocate driver data */
++	spidata = kzalloc(sizeof(*spidata), GFP_KERNEL);
++	if (!spidata)
++	{
++		dbg_err( "   %s:%d -ENOMEM \n", __FUNCTION__, __LINE__);
++		return -ENOMEM;
++	}
++	if (dev_idx < 0)
++	{
++		dbg_err( "   %s:%d -EINVAL \n", __FUNCTION__, __LINE__);
++		return -EINVAL;
++	}
++
++	/* Initialize the driver data */
++	spidata->spi = spi;
++
++	gs2972_device = &gs2972_devices[dev_idx];
++	gs2972_device->spidata = spidata;
++	gs2972_device->config = config;
++	gs2972_device->dev_no = dev_idx;
++
++	if ( 0 == rv )
++	{
++		// /SMPTE_BYPASS=1
++		// gpio_request(config->smpte_bypass, "/SMPTE_BYPASS");
++		// gpio_direction_output(config->smpte_bypass, 0x1);
++
++		dbg(2, debug, "   %s:%d jtag/host:%d val:%d \n", __FUNCTION__, __LINE__, GPIO(0, 21), gpio_get_value(GPIO(0, 21)));
++		dbg(2, debug, "   %s:%d smpte_bypass:%d val:%d \n", __FUNCTION__, __LINE__, config->smpte_bypass, gpio_get_value(config->smpte_bypass));
++
++		// IOPROC_EN/DIS=1
++		// gpio_request(config->ioproc_en, "IOPROC_EN/DIS");
++		// gpio_direction_output(config->ioproc_en, 0x1);
++		dbg(2, debug, "   %s:%d ioproc_en:%d val:%d \n", __FUNCTION__, __LINE__, config->ioproc_en, gpio_get_value(config->ioproc_en));
++
++		// TIM_861=0
++		// gpio_request(config->tim_861, "TIM_861");
++		// gpio_direction_output(config->tim_861, 0x0);
++		dbg(2, debug, "   %s:%d tim_861:%d val:%d\n", __FUNCTION__, __LINE__, config->tim_861, gpio_get_value(config->tim_861));
++
++		// RATE_SEL1=0
++		// gpio_request(config->rate_sel1, "RATE_SEL1");
++		// gpio_direction_output(config->rate_sel1, 0x0);
++		dbg(2, debug, "   %s:%d rate_sel1:%d val:%d \n", __FUNCTION__, __LINE__, config->rate_sel1, gpio_get_value(config->rate_sel1));
++
++		// RATE_SEL0=0
++		// gpio_request(config->rate_sel1, "RATE_SEL0");
++		// gpio_direction_output(config->rate_sel0, 0x0);
++		// gpio_request(config->rate_sel0, "rate_sel0");
++		// gpio_direction_output(config->rate_sel0, 0x0);
++		dbg(2, debug, "   %s:%d rate_sel0:%d val:%d \n", __FUNCTION__, __LINE__, config->rate_sel0, gpio_get_value(config->rate_sel0));
++
++		rv = gs2972_initialize(gs2972_device);
++		if (rv == 0)
++		{
++			gs2972_proc_add_device(gs2972_device);
++		}
++	}
++	dbg_info("   GS2972[%d] init status:%d \n", dev_idx, rv);
++
++	dbg(2, debug, " --%s:%d rv:%d \n", __FUNCTION__, __LINE__, rv);
++	return rv;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs2972_remove(struct spi_device *spi)
++{
++	struct gs2972_device_s *gs2972_device  = to_gs2972(spi);
++
++	dbg(2, debug, " ++%s:%d spi:%p gs2972_device:%p\n", __FUNCTION__, __LINE__, spi, gs2972_device);
++
++	gs2972_proc_del_device(gs2972_device);
++	gs2972_deinitialize(gs2972_device);
++
++	kfree( gs2972_device->spidata );
++	gs2972_device->spidata = NULL;
++	gs2972_device->config = NULL;
++
++	dbg(2, debug, " --%s:%d \n", __FUNCTION__, __LINE__);
++
++	return 0;
++}
++
++/*********************************************************\
++\*********************************************************/
++static struct spi_driver gs2972_spi = {
++	.driver = {
++		.name =   DRIVER_NAME,
++		.owner =  THIS_MODULE,
++	},
++	.probe =  gs2972_probe,
++	.remove = __devexit_p(gs2972_remove),
++
++	/* NOTE:  suspend/resume methods are not necessary here.
++	 * We don't do anything except pass the requests to/from
++	 * the underlying controller.  The refrigerator handles
++	 * most issues; the controller driver handles the rest.
++	 */
++};
++
++/*********************************************************\
++\*********************************************************/
++static int __init gs2972_init(void)
++{
++	int status;
++	dbg(2, debug, " ++%s:%d \n", __FUNCTION__, __LINE__ );
++
++	status = spi_register_driver(&gs2972_spi);
++	dbg(2, debug, " --%s:%d status:%d \n", __FUNCTION__, __LINE__, status);
++	return status;
++}
++
++/*********************************************************\
++\*********************************************************/
++static void __exit gs2972_exit(void)
++{
++	dbg(2, debug, " ++%s:%d \n", __FUNCTION__, __LINE__ );
++	spi_unregister_driver(&gs2972_spi);
++	dbg(2, debug, " --%s:%d \n", __FUNCTION__, __LINE__ );
++}
++
++module_init(gs2972_init);
++module_exit(gs2972_exit);
++MODULE_LICENSE("GPL");
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2972_regs.h b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2972_regs.h
+new file mode 100644
+index 0000000..521ba48
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs2972_regs.h
+@@ -0,0 +1,107 @@
++#ifndef _GS2972_REGS_H
++#define _GS2972_REGS_H
++
++
++
++#define GS2972_NUM_DEVICES  2
++
++
++/* Video Core Configuration and Status Registers Addresses */
++#define GS2972_IOPROC_ADDR                  0x000
++#define GS2972_ERROR_STAT_ADDR              0x001
++#define GS2972_EDH_FLAG_EXT_ADDR            0x002
++#define GS2972_EDH_FLAG_PGM_ADDR            0x003
++#define GS2972_DATA_FORMAT_ADDR             0x004
++
++#define GS2972_VSD_FORCE_ADDR             	0x006
++#define GS2972_EDH_STATUS_ADDR             	0x007
++#define GS2972_FIRST_AVAIL_POSITION_ADDR   	0x008
++
++#define GS2972_VIDEO_FORMAT_352_OUT_WORD_1_ADDR		0x00a
++#define GS2972_VIDEO_FORMAT_352_OUT_WORD_2_ADDR		0x00b
++#define GS2972_VIDEO_FORMAT_352_OUT_WORD_3_ADDR		0x00c
++#define GS2972_VIDEO_FORMAT_352_OUT_WORD_4_ADDR		0x00d
++#define GS2972_VIDEO_FORMAT_352_IN_WORD_1_ADDR		0x00e
++#define GS2972_VIDEO_FORMAT_352_IN_WORD_2_ADDR		0x00f
++#define GS2972_VIDEO_FORMAT_352_IN_WORD_3_ADDR		0x010
++#define GS2972_VIDEO_FORMAT_352_IN_WORD_4_ADDR		0x011
++#define GS2972_RASTER_STRUC_1_ADDR			0x012
++#define GS2972_RASTER_STRUC_2_ADDR			0x013
++#define GS2972_RASTER_STRUC_3_ADDR			0x014
++#define GS2972_RASTER_STRUC_4_ADDR			0x015
++
++#define GS2972_FIRST_LINE_NUMBER_STATUS_ADDR		0x024
++#define GS2972_FIRST_LINE_NUMBER_ADDR				0x025
++#define GS2972_FIRST_LINE_NUMBER_OF_WORDS_ADDR		0x026
++#define GS2972_SECOND_LINE_NUMBER_ADDR				0x027
++#define GS2972_SECOND_LINE_NUMBER_OF_WORDS_ADDR		0x028
++#define GS2972_THIRD_LINE_NUMBER_ADDR				0x029
++#define GS2972_THIRD_LINE_NUMBER_OF_WORDS_ADDR		0x02a
++#define GS2972_FOURTH_LINE_NUMBER_ADDR				0x02b
++#define GS2972_FOURTH_LINE_NUMBER_OF_WORDS_ADDR		0x02c
++#define GS2972_STREAM_TYPE_1_ADDR			0x02d
++
++#define GS2972_ANC_PACKET_BANK_1_ADDR_START		0x040
++#define GS2972_ANC_PACKET_BANK_1_ADDR_END		0x07f
++#define GS2972_ANC_PACKET_BANK_2_ADDR_START		0x080
++#define GS2972_ANC_PACKET_BANK_2_ADDR_END		0x0bf
++#define GS2972_ANC_PACKET_BANK_3_ADDR_START		0x0c0
++#define GS2972_ANC_PACKET_BANK_3_ADDR_END		0x0ff
++#define GS2972_ANC_PACKET_BANK_4_ADDR_START		0x100
++#define GS2972_ANC_PACKET_BANK_4_ADDR_END		0x13f
++
++#define GS2972_SDTI_TDM_ADDR				0x20a
++
++#define GS2972_LEVELB_INDICATION_ADDR		0x20d
++#define GS2972_DRIVE_STRENGTH_ADDR			0x20e
++
++#define GS2972_DRIVE_STRENGTH2_ADDR			0x210
++
++#define GS2972_ANC_TYPE_3_AP1_ADDR			0x011
++#define GS2972_ANC_TYPE_4_AP1_ADDR			0x012
++#define GS2972_ANC_TYPE_5_AP1_ADDR			0x013
++#define GS2972_ANC_TYPE_1_AP2_ADDR			0x014
++#define GS2972_ANC_TYPE_2_AP2_ADDR			0x015
++#define GS2972_ANC_TYPE_3_AP2_ADDR			0x016
++#define GS2972_ANC_TYPE_4_AP2_ADDR			0x017
++#define GS2972_ANC_TYPE_5_AP2_ADDR			0x018
++#define GS2972_VIDEO_FORMAT_352_A_1_ADDR	0x019
++#define GS2972_VIDEO_FORMAT_352_B_1_ADDR	0x01a
++#define GS2972_VIDEO_FORMAT_352_B_2_ADDR	0x01b
++#define GS2972_VIDEO_FORMAT_352_A_2_ADDR	0x01c
++#define GS2972_VIDEO_FORMAT_352_INS_A_ADDR	0x01d
++#define GS2972_VIDEO_FORMAT_352_INS_B_ADDR	0x01e
++
++#define GS2972_FLYWHEEL_STATUS_ADDR			0x023
++#define GS2972_RATE_SEL_ADDR				0x024
++#define GS2972_TIM_861_FORMAT_ADDR			0x025
++#define GS2972_TIM_861_CFG_ADDR				0x026
++
++#define GS2972_ERROR_MASK_1_ADDR			0x037
++#define GS2972_ERROR_MASK_2_ADDR			0x038
++#define GS2972_ACGEN_CTRL_ADDR				0x039
++#define GS2972_CLK_GEN_ADDR					0x06c
++#define GS2972_IO_DRIVE_STRENGTH_ADDR		0x06d
++#define GS2972_EQ_BYPASS_ADDR				0x073
++
++/* Video Core Configuration and Status Registers Mask */
++#define GS2972_DATA_FORMAT_VD_STD_MASK				0x03E0
++#define GS2972_DATA_FORMAT_VD_STD_SHIFT				5
++
++#define GS2972_DATA_FORMAT_INT_NOT_PROG_MASK		0x0010
++#define GS2972_DATA_FORMAT_INT_NOT_PROG_SHIFT		4
++
++#define GS2972_DATA_FORMAT_CONV_372_LOCKED_MASK		0x0008
++#define GS2972_DATA_FORMAT_CONV_372_LOCKED_SHIFT 	3
++
++#define GS2972_DATA_FORMAT_STD_LOCK_MASK			0x0004
++#define GS2972_DATA_FORMAT_STD_LOCK_SHIFT 			2
++
++#define GS2972_DATA_FORMAT_V_LOCK_MASK				0x0002
++#define GS2972_DATA_FORMAT_V_LOCK_SHIFT	 			1
++
++#define GS2972_DATA_FORMAT_H_LOCK_MASK				0x0001
++#define GS2972_DATA_FORMAT_H_LOCK_SHIFT	 			0
++
++#endif /* _GS2972_REGS_H */
++
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs297x_spi.h b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs297x_spi.h
+new file mode 100644
+index 0000000..c344043
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/gs297x_spi.h
+@@ -0,0 +1,169 @@
++#ifndef _GS297X_SPI_H
++#define _GS297X_SPI_H
++
++#define GS297X_SPI_RD_MASK 					0x8000
++
++#define dbg_spi(fmt, arg...)                      \
++	do {                                                    \
++		if (debug_spi)                               \
++			printk(KERN_INFO "gs297x_spi: " fmt , ## arg); \
++	} while (0)
++
++static int debug_spi = 0;
++
++/*********************************************************\
++\*********************************************************/
++static int gs297x_read_register(struct spi_device *spi, u16 offset, u16 *value)
++{
++	int	   status = -1;
++
++	dbg_spi(" ++%s:%d offset:%04x value:%p \n", __FUNCTION__, __LINE__, offset, value) ;
++	if (value) {
++		u16    reg_val = 0;
++		u16    reg_offs = offset;
++		struct spi_message	message;
++		struct spi_transfer	x[2];
++
++		/* Set RD bit */
++		reg_offs |= GS297X_SPI_RD_MASK;
++
++		/* convert MSB is to be sent first */
++		reg_offs = cpu_to_be16(reg_offs);
++
++		spi_message_init(&message);
++		memset(x, 0, sizeof x);
++		x[0].len = 2;
++		x[0].tx_buf = &reg_offs;
++		spi_message_add_tail(&x[0], &message);
++
++		x[1].len = 2;
++		x[1].rx_buf = &reg_val;
++		spi_message_add_tail(&x[1], &message);
++
++		/* do the i/o */
++		status = spi_sync(spi, &message);
++		if (status == 0) {
++			*value = be16_to_cpu(reg_val);
++		}
++	}
++
++	dbg_spi(" --%s:%d status:%d val:%04x\n", __FUNCTION__, __LINE__, status, *value);
++	return status;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs297x_write_register(struct spi_device *spi, u16 offset, u16 value)
++{
++	int	   status = -1;
++	u16    reg_val = value;
++	u16    reg_offs = offset;
++	struct spi_message	message;
++	struct spi_transfer	x[2];
++
++	dbg_spi(" ++%s:%d offset:%04x value:%04x \n", __FUNCTION__, __LINE__, offset, value) ;
++
++	/* Clear RD bit */
++	reg_offs &= ~GS297X_SPI_RD_MASK;
++
++	/* convert MSB is to be sent first */
++	reg_offs = cpu_to_be16(reg_offs);
++
++	spi_message_init(&message);
++	memset(x, 0, sizeof x);
++	x[0].len = 2;
++	x[0].tx_buf = &reg_offs;
++	spi_message_add_tail(&x[0], &message);
++
++	reg_val = cpu_to_be16(reg_val);
++
++	x[1].len = 2;
++	x[1].tx_buf = &reg_val;
++	spi_message_add_tail(&x[1], &message);
++
++	/* do the i/o */
++	status = spi_sync(spi, &message);
++
++	dbg_spi(" --%s:%d status:%d\n", __FUNCTION__, __LINE__, status);
++	return status;
++}
++
++#if 0
++/*********************************************************\
++\*********************************************************/
++static int gs297x_read_buffer(struct spi_device *spi, u16 offset, u16 *values, int length )
++{
++	struct spi_message msg;
++	struct spi_transfer spi_xfer;
++	int status;
++	u16 txbuf[GS2971_SPI_TRANSFER_MAX+1] = {0x9000,};  // read, auto-increment
++	u16 rxbuf[GS2971_SPI_TRANSFER_MAX+1];
++
++	if ( NULL == spi ) {
++		return -ENODEV;
++	}
++
++	if ( length > GS2971_SPI_TRANSFER_MAX ) {
++		return -EINVAL;
++	}
++
++	txbuf[0] = txbuf[0] | (offset & 0xfff);
++
++	memset( &spi_xfer, '\0', sizeof(spi_xfer) );
++	spi_xfer.tx_buf = txbuf;
++	spi_xfer.rx_buf = rxbuf;
++	spi_xfer.cs_change = 1;
++	spi_xfer.bits_per_word = 16;
++	spi_xfer.delay_usecs = 0;
++	spi_xfer.speed_hz = 1000000;
++	spi_xfer.len = sizeof(*values)*(length+1); // length in bytes
++
++	spi_message_init( &msg );
++	spi_message_add_tail( &spi_xfer, &msg );
++
++	status = spi_sync(spi, &msg);
++
++	memcpy( values, &rxbuf[1], sizeof(*values)*length );
++
++	return status;
++}
++
++/*********************************************************\
++\*********************************************************/
++static int gs297x_write_buffer(struct spi_device *spi, u16 offset, u16 *values, int length)
++{
++	struct spi_message msg;
++	struct spi_transfer spi_xfer;
++	int status;
++	u16 txbuf[GS2971_SPI_TRANSFER_MAX] = {0x1000,};  // write, auto-increment
++	u16 rxbuf[GS2971_SPI_TRANSFER_MAX] = {};
++
++	if ( NULL == spi ) {
++		return -ENODEV;
++	}
++
++	if ( length > GS2971_SPI_TRANSFER_MAX-1 ) {
++			return -EINVAL;
++	}
++
++	txbuf[0] = txbuf[0] | (offset & 0xfff);
++	memcpy( &txbuf[1], values, sizeof(*values)*length );
++
++	memset( &spi_xfer, '\0', sizeof(spi_xfer) );
++	spi_xfer.tx_buf = txbuf;
++	spi_xfer.rx_buf = rxbuf;
++	spi_xfer.cs_change = 0; // ??
++	spi_xfer.bits_per_word = 16;
++	spi_xfer.delay_usecs = 0;
++	spi_xfer.speed_hz = 1000000;
++	spi_xfer.len = sizeof(*values)*(length+1); // length in bytes
++
++	spi_message_init( &msg );
++	spi_message_add_tail( &spi_xfer, &msg );
++
++	status = spi_sync(spi, &msg);
++	return status;
++}
++#endif
++
++#endif /* _GS297X_SPI_H */
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/Kconfig b/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/Kconfig
+index e4f7e77..49351d1 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/Kconfig
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/Kconfig
+@@ -13,7 +13,8 @@ config VIDEO_TI81XX_VIDIN
+ 	select TI81XX_VPSS
+ 	select VIDEOBUF_GEN
+ 	select VIDEOBUF_DMA_CONTIG
+-	select VIDEO_TVP7002
++	#select VIDEO_TVP7002
++	select VIDEO_GS2971
+ 	default n
+ 	---help---
+ 	  V4L2 Capture driver support for TI81XX based boards.
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c b/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c
+index b2e7548..baa8ca6 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/ti81xx/ti81xxvin_main.c
+@@ -2433,7 +2433,11 @@ static int ti81xxvin_probe(struct platform_device *pdev)
+ 	struct ti81xxvin_subdev_info *subdevdata;
+ 	struct ti81xxvin_config *config;
+ 	int i, j, k, err, t;
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++	struct spi_master * spi_master_ptr;
++#else
+ 	struct i2c_adapter *i2c_adap;
++#endif
+ 	struct ti81xxvin_instance_obj *inst;
+ 	struct ti81xxvin_buffer_obj *buf_obj;
+ 	struct video_device *vfd;
+@@ -2533,7 +2537,9 @@ static int ti81xxvin_probe(struct platform_device *pdev)
+ 		video_set_drvdata(inst->video_dev, inst);
+ 
+ 	}
+-
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++	spi_master_ptr = spi_busnum_to_master(2);
++#else
+ 	/* TODO Get the proper adapter id */
+ 	if (cpu_is_ti814x())
+ 		i2c_adap = i2c_get_adapter(3);
+@@ -2541,6 +2547,7 @@ static int ti81xxvin_probe(struct platform_device *pdev)
+ 		i2c_adap = i2c_get_adapter(2);
+ 	else
+ 		i2c_adap = i2c_get_adapter(2);
++#endif
+ 
+ 	config = pdev->dev.platform_data;
+ 	/*These are 2, one for each TVP*/
+@@ -2565,11 +2572,17 @@ static int ti81xxvin_probe(struct platform_device *pdev)
+ 	for (i = 0; i < 2; i++) {
+ 		subdevdata = &config->subdev_info[i];
+ 		ti81xxvin_obj.sd[i] =
++#if defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++			v4l2_spi_new_subdev(&ti81xxvin_obj.v4l2_dev,
++						  spi_master_ptr,
++						  &subdevdata->board_info,
++						  0);
++#else
+ 			v4l2_i2c_new_subdev_board(&ti81xxvin_obj.v4l2_dev,
+ 						  i2c_adap,
+ 						  &subdevdata->board_info,
+ 						  NULL, 0);
+-
++#endif
+ 		if (!ti81xxvin_obj.sd[i]) {
+ 			ti81xxvin_err("Error registering v4l2 subdevice\n");
+ 			err = -ENODEV;
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/media/video/v4l2-common.c b/linux-2.6.37-psp04.04.00.01/drivers/media/video/v4l2-common.c
+index ffee794..a396c80 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/media/video/v4l2-common.c
++++ b/linux-2.6.37-psp04.04.00.01/drivers/media/video/v4l2-common.c
+@@ -524,25 +524,32 @@ struct v4l2_subdev *v4l2_spi_new_subdev(struct v4l2_device *v4l2_dev,
+ 
+ 	BUG_ON(!v4l2_dev);
+ 
+-	if (info->modalias)
++	if (info->modalias) {
+ 		request_module(info->modalias);
++	}
+ 
+ 	spi = spi_new_device(master, info);
+ 
+ 	if (spi == NULL || spi->dev.driver == NULL)
++	{
+ 		goto error;
++	}
+ 
+ 	if (!try_module_get(spi->dev.driver->owner))
++	{
+ 		goto error;
++	}
+ 
+ 	sd = spi_get_drvdata(spi);
+-	if (!enable_devnode)
++	if (!enable_devnode) {
+ 		sd->flags &= ~V4L2_SUBDEV_FL_HAS_DEVNODE;
++	}
+ 
+ 	/* Register with the v4l2_device which increases the module's
+ 	   use count as well. */
+-	if (v4l2_device_register_subdev(v4l2_dev, sd))
++	if (v4l2_device_register_subdev(v4l2_dev, sd)){
+ 		sd = NULL;
++	}
+ 
+ 	/* Decrease the module use count to match the first try_module_get. */
+ 	module_put(spi->dev.driver->owner);
+diff --git a/linux-2.6.37-psp04.04.00.01/drivers/video/ti81xx/vpss/dctrl.c b/linux-2.6.37-psp04.04.00.01/drivers/video/ti81xx/vpss/dctrl.c
+index 2226054..f868bb4 100644
+--- a/linux-2.6.37-psp04.04.00.01/drivers/video/ti81xx/vpss/dctrl.c
++++ b/linux-2.6.37-psp04.04.00.01/drivers/video/ti81xx/vpss/dctrl.c
+@@ -43,6 +43,19 @@ static struct vps_dispctrl *disp_ctrl;
+ static void *dc_handle;
+ static struct vps_payload_info  *dc_payload_info;
+ 
++#if defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++/* Assuming that GS2972 is connected over 8bit data width.
++   We need to double PLL clock in order to support it.
++   If HDMI module is loaded we assume that GS2972 is not used and 
++   clock doubling is disabled. 
++
++   !!!! NOTE !!!!
++   If GS2972 is ever connected over 16 bit width, don't double the clock.
++*/
++
++static int hdmi_present = 0;
++#endif
++
+ /*store the current VENC setting*/
+ static struct vps_dcvencinfo venc_info = {
+ 	{
+@@ -501,6 +514,18 @@ static int dc_set_pllclock(int bidx, u32 clock)
+ 
+ 	pll.outputvenc = (enum vps_vplloutputclk)get_plloutputvenc(bidx);
+ 	pll.outputclk = clock;
++
++#if defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++	VPSSDBG("dc_set_pllclock outputvenc:%d outputclk:%d hdmi_present:%d \n", pll.outputvenc, pll.outputclk, hdmi_present);
++	if ((hdmi_present == 0) && 
++		(pll.outputvenc == VPS_SYSTEM_VPLL_OUTPUT_VENC_D) && 
++		(clock <= 74250)) {
++		pll.outputclk <<= 1;
++		VPSSDBG("dc_set_pllclock double clk outputclk:%d \n", pll.outputclk);
++	}
++#endif
++
++
+ 	r = vps_system_setpll(&pll);
+ 	return r;
+ }
+@@ -559,6 +584,8 @@ static int dc_set_clksrc(struct vps_dcvencclksrc *clksrc)
+ 	disp_ctrl->clksrc->venc = clksrc->venc;
+ 	disp_ctrl->clksrc->clksrc = clksrc->clksrc;
+ 
++	VPSSDBG("dc_set_clksrc venc:%d clksrc:%d \n", clksrc->venc, clksrc->clksrc);
++
+ 	r = vps_fvid2_control(disp_ctrl->fvid2_handle,
+ 			      IOCTL_VPS_DCTRL_SET_VENC_CLK_SRC,
+ 			      (void *)disp_ctrl->clksrc_phy,
+@@ -3044,17 +3071,35 @@ int TI81xx_register_display_panel(struct TI81xx_display_driver *panel_driver,
+ 	if ((vencinfo) && (vencinfo->enabled))
+ 		extenc->status = TI81xx_EXT_ENCODER_ENABLED;
+ 
+-	if (((v_pdata->cpu != CPU_DM816X) && (HDMI == display_num) &&
++#if defined(CONFIG_VIDEO_GS2972) || defined(CONFIG_VIDEO_GS2972_MODULE)
++	if (((HDMI == display_num) &&
+ 		(panel_driver->type ==
+ 		TI81xx_DEVICE_TYPE_MASTER))) {
++
++		hdmi_present = 1;
++
+ 		/*reconfigure the PLL*/
+ 		r = dc_set_pllclock(display_num,
+ 			    venc_info.modeinfo[display_num].
+ 				minfo.pixelclock);
++		VPSSDBG("dc_set_pllclock r:%d \n", r);
+ 		if (r)
+ 			VPSSERR("failed to set pll");
+ 	}
++#else
++	if (((v_pdata->cpu != CPU_DM816X) && (HDMI == display_num) &&
++		(panel_driver->type ==
++		TI81xx_DEVICE_TYPE_MASTER))) {
+ 
++		/*reconfigure the PLL*/
++		r = dc_set_pllclock(display_num,
++			    venc_info.modeinfo[display_num].
++				minfo.pixelclock);
++		VPSSDBG("dc_set_pllclock r:%d \n", r);
++		if (r)
++			VPSSERR("failed to set pll");
++	}
++#endif
+ 
+ exit:
+ 	dc_unlock(disp_ctrl);
+diff --git a/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h b/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h
+index cbc5353..1ef235a 100644
+--- a/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h
++++ b/linux-2.6.37-psp04.04.00.01/include/linux/ti81xx.h
+@@ -6,8 +6,21 @@
+ #include <linux/videodev2.h>
+ #include <linux/vps_cfgVipParser.h>
+ 
++
+ #define TVP7002_INST0 "tvp7002"
+ #define TVP7002_INST1 "tvp7002"
++
++#define GS2971_INST0 "gs2971"
++#define GS2971_INST1 "gs2971"
++
++#if defined(CONFIG_VIDEO_TVP7002) || defined(CONFIG_VIDEO_TVP7002_MODULE)
++	#define	TI81XXVIN_INST0 TVP7002_INST0
++	#define	TI81XXVIN_INST1 TVP7002_INST1
++#elif defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++	#define	TI81XXVIN_INST0 GS2971_INST0
++	#define	TI81XXVIN_INST1 GS2971_INST1
++#endif
++
+ #define TI81XXVIN_NUM_INSTANCES		4
+ 
+ 
+@@ -20,8 +33,19 @@ struct ti81xxvin_interface {
+ };
+ 
+ struct ti81xxvin_subdev_info {
++	/* Name of the sub-device This name can be anything based on subdevice*/
+ 	const char *name;
++
++	/* Sub-device board info like how sub-device is connected on board.
++	 * What is its i2c address, sub-device name etc. This should match
++	 * sub-device  name given in the sub-device driver under driver/media/video folder.
++	 * Based on name only sub-device will be searched.
++     */
++#if defined(CONFIG_VIDEO_TVP7002) || defined(CONFIG_VIDEO_TVP7002_MODULE)
+ 	struct i2c_board_info board_info;
++#elif defined(CONFIG_VIDEO_GS2971) || defined(CONFIG_VIDEO_GS2971_MODULE)
++    struct spi_board_info board_info;
++#endif
+ 	/* How the subdevice is connected to VIP Port
+ 	   Like embedded sync, discrete sync, 8/16/24 bit mode etc.
+ 	*/
+diff --git a/linux-2.6.37-psp04.04.00.01/include/media/gs2971.h b/linux-2.6.37-psp04.04.00.01/include/media/gs2971.h
+new file mode 100644
+index 0000000..d4b0505
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/include/media/gs2971.h
+@@ -0,0 +1,15 @@
++#ifndef _GS2971_H
++#define _GS2971_H
++
++/* platform_device configuration data, should be assigned to
++ * the platform_device's dev.platform_data */
++struct gs2971_platform_config_s {
++	unsigned int dev_idx;
++	unsigned int sw_en;
++	unsigned int tim_861;
++	unsigned int smpte_bypass;
++	unsigned int ioproc_en;
++};
++
++
++#endif /* _GS2971_H */
+diff --git a/linux-2.6.37-psp04.04.00.01/include/media/gs2972.h b/linux-2.6.37-psp04.04.00.01/include/media/gs2972.h
+new file mode 100644
+index 0000000..4a2fc5c
+--- /dev/null
++++ b/linux-2.6.37-psp04.04.00.01/include/media/gs2972.h
+@@ -0,0 +1,17 @@
++#ifndef _GS2972_H
++#define _GS2972_H
++
++/* platform_device configuration data, should be assigned to
++ * the platform_device's dev.platform_data */
++struct gs2972_platform_config_s {
++	unsigned int dev_idx;
++	unsigned int tim_861;
++	unsigned int _3g_ancb;
++	unsigned int rate_sel1;
++	unsigned int rate_sel0;
++	unsigned int smpte_bypass;
++	unsigned int ioproc_en;
++};
++
++
++#endif /* _GS2972_H */
+diff --git a/linux-2.6.37-psp04.04.00.01/include/media/v4l2-chip-ident.h b/linux-2.6.37-psp04.04.00.01/include/media/v4l2-chip-ident.h
+index 5f84034..a4a956d 100644
+--- a/linux-2.6.37-psp04.04.00.01/include/media/v4l2-chip-ident.h
++++ b/linux-2.6.37-psp04.04.00.01/include/media/v4l2-chip-ident.h
+@@ -110,6 +110,9 @@ enum {
+ 	/* module vp27smpx: just ident 2700 */
+ 	V4L2_IDENT_VP27SMPX = 2700,
+ 
++	V4L2_IDENT_GS2971 = 2971,
++	V4L2_IDENT_GS2972 = 2972,
++
+ 	/* module vpx3220: reserved range: 3210-3229 */
+ 	V4L2_IDENT_VPX3214C = 3214,
+ 	V4L2_IDENT_VPX3216B = 3216,
