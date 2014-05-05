@@ -152,6 +152,18 @@ else
 	$(V) rm -f $(FSIMAGE) ; touch $(FSIMAGE)
 endif
 	$(V) echo -n " $(CONFIG_BSP_EXTRA_BOOT_ARGS) ">>$(CMDLINEFILE)
+	$(V) $(ECHO) "PCIE cmdline modifications.."
+ifneq ($(CONFIG_VIDEORECORDER_PCIE_ENDPOINT_MEM),)
+	$(V) echo -n " pcie_mem=$(CONFIG_VIDEORECORDER_PCIE_ENDPOINT_MEM)M ">>$(CMDLINEFILE)
+endif
+ifneq ($(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM),)
+	$(V) $(ECHO) "PCIE Root Complex .."
+	if ! grep -q "vmalloc=" $(CMDLINEFILE) ; then \
+	    echo -n " vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M " >>$(CMDLINEFILE) ; \
+	else \
+	    sed -i -e "s/vmalloc=.*M/vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M/" $(CMDLINEFILE) ; \
+	fi
+endif
 	$(V) $(ECHO) "Build complete"
 
 genimage:
@@ -166,6 +178,19 @@ cmdline: build_start $(foreach COMP, $(FS_COMPONENTS), $(COMP)_cmdline)
 	$(V) $(ECHO) "Building file system target image(s)"
 	$(MAKE) -C fstargets $(MAKE_CALL_PARAMS) cmdline || { exit 1 ; } ;
 	$(V) echo -n " $(CONFIG_BSP_EXTRA_BOOT_ARGS) ">>$(CMDLINEFILE)
+	$(V) $(ECHO) "PCIE cmdline modifications.."
+ifneq ($(CONFIG_VIDEORECORDER_PCIE_ENDPOINT_MEM),)
+	$(V) echo -n " pcie_mem=$(CONFIG_VIDEORECORDER_PCIE_ENDPOINT_MEM)M ">>$(CMDLINEFILE)
+endif
+ifneq ($(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM),)
+	$(V) $(ECHO) "PCIE Root Complex .."
+	if ! grep -q "vmalloc=" $(CMDLINEFILE) ; then \
+	    echo -n " vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M " >>$(CMDLINEFILE) ; \
+	else \
+	    sed -i -e "s/vmalloc=.*M/vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M/" $(CMDLINEFILE) ; \
+	fi
+endif
+
 
 defs:
 	$(V) $(ECHO) "Building Apps.defs"

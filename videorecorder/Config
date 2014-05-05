@@ -26,6 +26,13 @@ config VIDEORECORDER_PCIE_ROOT_COMPLEX
 	  Say Y if you want your board to work as PCIE root complex.
 endchoice
 
+config VIDEORECORDER_PCIE_ENDPOINT_MEM
+	int "Memory (in MB) reserved for PCIE Endpoint"
+	depends on VIDEORECORDER_PCIE_ENDPOINT
+	help
+	  Number of MBytes reserved for PCIE Endpoint
+
+
 config VIDEORECORDER_SERIAL_CONSOLE
 	int "Serial console used"
 	default 0 if VIDEORECORDER_PCIE_ROOT_COMPLEX

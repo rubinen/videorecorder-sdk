@@ -1,0 +1,46 @@
+#!/bin/sh -e
+
+case "$1" in
+start)
+	echo "load PCIE modules"
+	if [ -f /lib/modules/2.6.37-ridgerun/kernel/drivers/char/ti81xx_edma.ko ] ; then
+		rmmod ti81xx_edma 2>/dev/null || true
+		modprobe ti81xx_edma
+	fi
+
+	if [ -f /lib/modules/2.6.37-ridgerun/kernel/drivers/char/ti81xx_pcie_rcdrv.ko ] ; then
+		rmmod ti81xx_pcie_rcdrv 2>/dev/null || true
+		modprobe ti81xx_pcie_rcdrv
+	fi
+
+	if [ -f /lib/modules/2.6.37-ridgerun/kernel/drivers/char/ti81xx_pcie_epdrv.ko ] ; then
+		rmmod ti81xx_pcie_epdrv 2>/dev/null || true
+		modprobe ti81xx_pcie_epdrv
+	fi
+
+	;;
+
+stop)
+    echo "Unload PCIE modules"
+	if lsmod | grep -q ti81xx_pcie_epdrv  ; then
+		rmmod ti81xx_pcie_epdrv || true
+	fi
+
+	if lsmod | grep -q ti81xx_pcie_rcdrv  ; then
+		rmmod ti81xx_pcie_rcdrv || true
+	fi
+
+	if lsmod | grep -q ti81xx_edma  ; then
+		rmmod ti81xx_edma || true
+	fi
+
+	;;
+
+*)
+    echo "Usage: /etc/init.d/pcie_modules.init {start|stop}"
+    exit 1
+    ;;
+esac
+
+exit 0
+
