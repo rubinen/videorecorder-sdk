@@ -29,8 +29,16 @@ endchoice
 config VIDEORECORDER_PCIE_ENDPOINT_MEM
 	int "Memory (in MB) reserved for PCIE Endpoint"
 	depends on VIDEORECORDER_PCIE_ENDPOINT
+	default 8
 	help
 	  Number of MBytes reserved for PCIE Endpoint
+
+config VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM
+	int "vmalloc size (in MB) after PCIE Root Complex memory reservation"
+	depends on VIDEORECORDER_PCIE_ROOT_COMPLEX
+	default 768
+	help
+	  vmalloc size after PCIE Root Complex memory reservation
 
 
 config VIDEORECORDER_SERIAL_CONSOLE

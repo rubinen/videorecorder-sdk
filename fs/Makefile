@@ -161,7 +161,7 @@ ifneq ($(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM),)
 	if ! grep -q "vmalloc=" $(CMDLINEFILE) ; then \
 	    echo -n " vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M " >>$(CMDLINEFILE) ; \
 	else \
-	    sed -i -e "s/vmalloc=.*M/vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M/" $(CMDLINEFILE) ; \
+	    sed -i -e "s/vmalloc=[0-9]\{0,4\}M/vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M/" $(CMDLINEFILE) ; \
 	fi
 endif
 	$(V) $(ECHO) "Build complete"
@@ -187,7 +187,7 @@ ifneq ($(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM),)
 	if ! grep -q "vmalloc=" $(CMDLINEFILE) ; then \
 	    echo -n " vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M " >>$(CMDLINEFILE) ; \
 	else \
-	    sed -i -e "s/vmalloc=.*M/vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M/" $(CMDLINEFILE) ; \
+	    sed -i -e "s/vmalloc=[0-9]\{0,4\}M/vmalloc=$(CONFIG_VIDEORECORDER_PCIE_ROOT_COMPLEX_MEM)M/" $(CMDLINEFILE) ; \
 	fi
 endif
 
