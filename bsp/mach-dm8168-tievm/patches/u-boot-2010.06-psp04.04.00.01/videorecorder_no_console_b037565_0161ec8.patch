@@ -1,0 +1,27 @@
+diff --git a/src/include/configs/ti8168_evm.h b/src/include/configs/ti8168_evm.h
+index 689fbcd..1d45c2b 100644
+--- a/src/include/configs/ti8168_evm.h
++++ b/src/include/configs/ti8168_evm.h
+@@ -171,6 +171,9 @@
+ 		#define CONFIG_SYS_NS16550_COM1		0x48020000	/* UART0 */
+ 	#elif CONFIG_UART_NO == 1
+ 		#define CONFIG_SYS_NS16550_COM1		0x48022000	/* UART1 */
++	#elif CONFIG_UART_NO == -1
++		#warning CONFIG_UART_NO=-1 - console will be disabled!
++		#define CONFIG_SYS_NS16550_COM1		0x48024000
+ 	#else
+ 		#error CONFIG_UART_NO specified not supported!
+ 	#endif
+@@ -187,6 +190,12 @@
+ #define CONFIG_CONS_INDEX		1
+ #define CONFIG_SYS_CONSOLE_INFO_QUIET
+ 
++#if defined(CONFIG_UART_NO) && CONFIG_UART_NO == -1
++#define CONFIG_SILENT_CONSOLE		1	/* enable silent startup */
++#define CONFIG_DISABLE_CONSOLE		1	/* disable console */
++#define CONFIG_SYS_DEVICE_NULLDEV		1	/* include nulldev device */
++#endif
++
+ #if defined(CONFIG_NO_ETH)
+ # undef CONFIG_CMD_NET
+ #else

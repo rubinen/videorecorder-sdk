@@ -36,7 +36,11 @@ include $(DEVDIR)/bsp/mach/Make.conf
 build:
 
 cmdline:
+ifneq ($(CONFIG_VIDEORECORDER_SERIAL_CONSOLE),-1)
 	$(V)echo -n "console=ttyO$(CONFIG_VIDEORECORDER_SERIAL_CONSOLE),115200n8 ">>$(CMDLINEFILE)
+else
+	$(V)echo -n "console= ">>$(CMDLINEFILE)
+endif
 
 chkconfig:
 

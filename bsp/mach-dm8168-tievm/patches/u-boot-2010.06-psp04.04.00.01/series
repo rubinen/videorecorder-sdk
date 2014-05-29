@@ -3,3 +3,4 @@ uboot_env_in_sdcard.patch
 skip_env_on_sd_boot.patch
 add_quick_boot_support.patch
 videorecorder_8950c40_b037565.patch
+videorecorder_no_console_b037565_0161ec8.patch
