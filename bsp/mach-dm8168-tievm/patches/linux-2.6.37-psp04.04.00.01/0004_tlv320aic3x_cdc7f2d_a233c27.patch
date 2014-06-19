@@ -1,0 +1,27 @@
+diff --git a/linux-2.6.37-psp04.04.00.01/sound/soc/codecs/tlv320aic3x.c b/linux-2.6.37-psp04.04.00.01/sound/soc/codecs/tlv320aic3x.c
+index 14ec5a3..76160d7 100644
+--- a/linux-2.6.37-psp04.04.00.01/sound/soc/codecs/tlv320aic3x.c
++++ b/linux-2.6.37-psp04.04.00.01/sound/soc/codecs/tlv320aic3x.c
+@@ -1358,7 +1358,11 @@ static int aic3x_probe(struct snd_soc_codec *codec)
+ 	aic3x->codec = codec;
+ 	codec->idle_bias_off = 1;
+ 
+-	ret = snd_soc_codec_set_cache_io(codec, 8, 8, aic3x->control_type);
++	if (aic3x->control_type == SND_SOC_CUSTOM){
++		ret = snd_soc_codec_set_cache_io(codec, 7, 8, aic3x->control_type); //IDEATEL VIDEO-RECORDER
++	} else {
++		ret = snd_soc_codec_set_cache_io(codec, 8, 8, aic3x->control_type);
++	}
+ 	if (ret != 0) {
+ 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
+ 		return ret;
+@@ -1488,7 +1492,8 @@ static int aic3x_i2c_probe(struct i2c_client *i2c,
+ 	}
+ 
+ 	aic3x->control_data = i2c;
+-	aic3x->control_type = SND_SOC_I2C;
++	//aic3x->control_type = SND_SOC_I2C;
++	aic3x->control_type = SND_SOC_CUSTOM; //IDEATEL VIDEO-RECORDER CUSTOM CODEC CONTROL
+ 
+ 	i2c_set_clientdata(i2c, aic3x);
+ 	if (pdata) {
